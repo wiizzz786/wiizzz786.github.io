@@ -58,14 +58,12 @@
     <script type="text/babel">
         
         // --- 1. DUMMY CONFIGURATION FOR LOCAL TESTING ---
-        // These values are used if the app is run outside the Canvas environment where __firebase_config is not available.
+        // Simplified config to reduce risk of internal validation errors when running locally.
         const DUMMY_FIREBASE_CONFIG = {
-            apiKey: "DUMMY_LOCAL_API_KEY", // Needs to be a string
-            authDomain: "dummy-arcade.firebaseapp.com",
-            projectId: "dummy-arcade-12345", 
-            storageBucket: "dummy-arcade.appspot.com",
-            messagingSenderId: "1234567890",
-            appId: "1:1234567890:web:localapp123"
+            apiKey: "DUMMY_LOCAL_API_KEY", 
+            authDomain: "dummy-auth.firebaseapp.com",
+            projectId: "dummy-project-12345", 
+            appId: "1:123:web:dummy"
         };
         const DUMMY_APP_ID = 'local-dev-arcade-app';
         
@@ -77,7 +75,7 @@
         // Set the app ID, using a dummy value if the global is missing
         const appId = IS_CANVAS_ENV ? __app_id : DUMMY_APP_ID;
 
-        // Set the Firebase Config, using the dummy config if the global is missing
+        // Set the Firebase Config, using the dummy config if the global is missing or unparseable
         let firebaseConfig;
         if (IS_CANVAS_ENV && typeof __firebase_config !== 'undefined' && __firebase_config) {
             try {
@@ -404,7 +402,7 @@
                             {user.role === 'admin' ? (
                                 <div className="text-sm text-gray-700 space-y-2">
                                     <p className="p-2 bg-yellow-50 rounded-md border border-yellow-200">
-                                        Admin credentials are hardcoded in `App.jsx` for platform management. They cannot be changed via the UI.
+                                        Admin credentials are hardcoded in `index.html` for platform management. They cannot be changed via the UI.
                                     </p>
                                     <p className="font-semibold">Username: <span className="text-indigo-600">{HARDCODED_ADMIN_USERNAME}</span></p>
                                 </div>
@@ -781,9 +779,6 @@
 
             // 1. Initialize Firebase and Setup Auth Listener
             useEffect(() => {
-                // We no longer need an initial check as the environment variables are guaranteed to be set 
-                // either by the Canvas (real) or by the robust fallback (dummy).
-
                 try {
                     const app = initializeApp(firebaseConfig);
                     const firestore = getFirestore(app);
@@ -827,7 +822,7 @@
                             } catch (e) {
                                 console.error("Firebase initial sign-in error:", e);
                                 // If sign-in fails, we still mark ready, but stay on login screen.
-                                setUser({ isReady: true, role: 'error' });
+                                setUser({ isReady: true, role: 'unknown', encodedPassword: null }); // Set to unknown to trigger login
                                 setRoute('login');
                             }
                         }
@@ -841,7 +836,8 @@
                     };
                 } catch (e) {
                     console.error("Critical Firebase Initialization Error:", e);
-                    setUser({ isReady: true, role: 'error' }); 
+                    // This block executes if initializeApp fails. Set an explicit error state.
+                    setUser({ uid: null, isReady: true, role: 'error', encodedPassword: null }); 
                     setIsAuthReady(true);
                 }
             }, []);
@@ -888,17 +884,18 @@
             };
 
             const renderContent = () => {
-                // Wait for user auth status to be resolved
+                // 1. Wait for user auth status to be resolved
                 if (!isAuthReady || !db || !auth) {
                     return <LoadingIndicator />;
                 }
                 
-                // Fallback for unconfigured/error state
-                if (user?.role === 'unconfigured' || user?.role === 'error') {
+                // 2. Fallback for unconfigured/error state
+                if (user?.role === 'error') {
                      return (
                         <div className="w-full max-w-lg p-8 bg-white shadow-2xl rounded-xl text-center">
                             <h2 className="text-3xl font-extrabold text-red-600 mb-4">Setup Error</h2>
-                            <p className="text-gray-700">The application failed to initialize Firebase, likely due to an API key or configuration error. If running locally, ensure the dummy config is valid.</p>
+                            <p className="text-gray-700 mb-4">The application failed to initialize Firebase, likely due to an API key or configuration error during startup.</p>
+                            <p className="text-sm text-gray-500 mb-6">If you are running this locally, this error is expected unless you replace the **DUMMY_LOCAL_API_KEY** with a real Firebase API Key.</p>
                             <button onClick={() => window.location.reload()} className="mt-4 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 flex items-center mx-auto">
                                 <RefreshCw className="w-4 h-4 mr-2" /> Try Reloading
                             </button>
@@ -908,7 +905,7 @@
 
                 switch (route) {
                     case 'login':
-                        // ** UPDATED: Pass setRoute to AuthScreen **
+                        // If user is ready but still 'unknown' role (meaning anonymous sign-in worked but no profile found)
                         return <AuthScreen setUser={setUser} db={db} auth={auth} setRoute={setRoute} />;
                     case 'dashboard':
                         // Check if user object is fully populated before rendering dashboard
