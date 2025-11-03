@@ -24,6 +24,15 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
+        /* Custom styles for the game iframe to take up max space */
+        .game-iframe {
+            width: 100%;
+            height: calc(100vh - 12rem); /* Adjusted height to fit within the screen */
+            border: 4px solid #4f46e5;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            background-color: white;
+        }
     </style>
 </head>
 <body>
@@ -61,13 +70,10 @@
         const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc } = window.firebase;
         
         // --- Defensive Icon Loading Utility ---
-        // This function retrieves the icon component from the global 'lucide' object
-        // and returns a fallback component if the icon is not found, preventing crashes.
         const getIcon = (name) => {
             if (window.lucide && window.lucide[name]) {
                 return window.lucide[name];
             }
-            // Fallback component to prevent "type is invalid" error
             return ({ className = '' }) => <span className={`text-red-500 ${className}`}>[ICON]</span>;
         };
 
@@ -104,7 +110,8 @@
         );
 
         // Unified Authentication Screen (handles both Login and Register)
-        const AuthScreen = ({ setUser, db, auth }) => {
+        // ** UPDATED: Added setRoute prop **
+        const AuthScreen = ({ setUser, db, auth, setRoute }) => { 
             const [isLogin, setIsLogin] = useState(true);
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
@@ -147,8 +154,11 @@
                         }, { merge: true });
 
                         setSuccess(`Welcome, Admin ${HARDCODED_ADMIN_USERNAME}! Redirecting...`);
-                        // Pass encodedPassword to user state
-                        setTimeout(() => setUser({ uid: currentUser.uid, username: HARDCODED_ADMIN_USERNAME, role: 'admin', isReady: true, encodedPassword }), 500);
+                        // ** UPDATED: setRoute('dashboard') added **
+                        setTimeout(() => {
+                            setUser({ uid: currentUser.uid, username: HARDCODED_ADMIN_USERNAME, role: 'admin', isReady: true, encodedPassword });
+                            setRoute('dashboard');
+                        }, 500);
                         return; // Stop the regular Firestore check
                     }
 
@@ -185,8 +195,11 @@
                         }, { merge: true });
 
                         setSuccess(`Welcome back, ${existingUser.username}! Redirecting...`);
-                        // Pass encodedPassword to user state
-                        setTimeout(() => setUser({ uid: currentUser.uid, username: existingUser.username, role: existingUser.role || 'player', isReady: true, encodedPassword: existingUser.encodedPassword }), 500);
+                        // ** UPDATED: setRoute('dashboard') added **
+                        setTimeout(() => {
+                            setUser({ uid: currentUser.uid, username: existingUser.username, role: existingUser.role || 'player', isReady: true, encodedPassword: existingUser.encodedPassword });
+                            setRoute('dashboard');
+                        }, 500);
 
                     } else {
                         // --- REGISTRATION PATH ---
@@ -206,8 +219,11 @@
                         }, { merge: true });
 
                         setSuccess(`Registration successful for user: ${username}!`);
-                        // Pass encodedPassword to user state
-                        setTimeout(() => setUser({ uid: currentUser.uid, username, role: 'player', isReady: true, encodedPassword }), 500);
+                        // ** UPDATED: setRoute('dashboard') added **
+                        setTimeout(() => {
+                            setUser({ uid: currentUser.uid, username, role: 'player', isReady: true, encodedPassword });
+                            setRoute('dashboard');
+                        }, 500);
                     }
 
                 } catch (err) {
@@ -296,12 +312,11 @@
                     setMessage('Error: Admin password changes must be handled by updating the hardcoded credentials directly in the source code.');
                     return;
                 }
-
+                
                 if (newPassword.length < 6) {
                     setMessage('Error: New password must be at least 6 characters long.');
                     return;
                 }
-
                 if (newPassword !== confirmPassword) {
                     setMessage('Error: New password and confirmation do not match.');
                     return;
@@ -315,7 +330,6 @@
 
                 try {
                     const userDocRef = doc(db, `/artifacts/${appId}/public/data/users`, user.uid);
-                    
                     // Only update the encoded password field
                     await updateDoc(userDocRef, {
                         encodedPassword: encodeBase64(newPassword),
@@ -335,75 +349,53 @@
             };
 
             return (
-                <div className="mt-8">
+                <div className="mt-6">
                     <button
                         onClick={() => setIsExpanded(!isExpanded)}
                         className="w-full flex justify-between items-center px-4 py-3 bg-indigo-100 text-indigo-700 font-bold rounded-lg hover:bg-indigo-200 transition shadow-lg"
                     >
                         <span className="flex items-center">
-                            <Key className="w-5 h-5 mr-3" />
+                            <Lock className="w-5 h-5 mr-3" />
                             {user.role === 'admin' ? 'Admin Credential Info' : 'Change Your Password'}
                         </span>
-                        <span className="text-xl">{isExpanded ? '−' : '+'}</span>
+                        <span>{isExpanded ? '−' : '+'}</span>
                     </button>
-
                     {isExpanded && (
-                        <div className="p-6 bg-white border border-indigo-200 rounded-b-lg shadow-inner mt-0">
-                            <h4 className="text-xl font-semibold mb-4 text-indigo-800">
+                        <div className="mt-3 p-4 bg-white border border-indigo-200 rounded-lg shadow-inner">
+                            <h3 className="text-lg font-bold text-indigo-700 mb-3 flex items-center">
+                                <Key className="w-4 h-4 mr-2" />
                                 {user.role === 'admin' ? 'Admin Access Details' : 'Player Security Settings'}
-                            </h4>
-                            
+                            </h3>
                             {user.role === 'admin' ? (
-                                <p className="text-sm text-gray-600 p-3 bg-yellow-50 rounded-lg">
-                                Admin credentials are hardcoded in `App.jsx` for platform management. They cannot be changed via the UI.
-                                <br />Username: <span className="font-mono font-bold text-gray-800">{HARDCODED_ADMIN_USERNAME}</span>
-                                </p>
+                                <div className="text-sm text-gray-700 space-y-2">
+                                    <p className="p-2 bg-yellow-50 rounded-md border border-yellow-200">
+                                        Admin credentials are hardcoded in `App.jsx` for platform management. They cannot be changed via the UI.
+                                    </p>
+                                    <p className="font-semibold">Username: <span className="text-indigo-600">{HARDCODED_ADMIN_USERNAME}</span></p>
+                                </div>
                             ) : (
-                                <>
+                                <form onSubmit={handlePasswordChange} className="space-y-3">
                                     {message && (
-                                        <div className={`p-3 rounded-lg mb-4 font-medium text-sm ${message.includes('Success') ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'}`}>
+                                        <div className={`p-3 rounded-lg font-medium text-sm border ${message.startsWith('Error') ? 'bg-red-100 text-red-700 border-red-300' : 'bg-green-100 text-green-700 border-green-300'}`}>
                                             {message}
                                         </div>
                                     )}
-                                    <form onSubmit={handlePasswordChange} className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-                                            <input
-                                                type="password"
-                                                value={oldPassword}
-                                                onChange={(e) => setOldPassword(e.target.value)}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm"
-                                                required
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">New Password (6+ characters)</label>
-                                            <input
-                                                type="password"
-                                                value={newPassword}
-                                                onChange={(e) => setNewPassword(e.target.value)}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm"
-                                                required
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-                                            <input
-                                                type="password"
-                                                value={confirmPassword}
-                                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm"
-                                                required
-                                            />
-                                        </div>
-                                        <button
-                                            type="submit"
-                                            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 font-semibold shadow-md active:shadow-none"
-                                        >
-                                            Update Password
-                                        </button>
-                                    </form>
-                                </>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                                        <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">New Password (6+ characters)</label>
+                                        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                                        <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
+                                    </div>
+                                    <button type="submit" className="w-full bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 font-medium transition duration-200 shadow-md">
+                                        Update Password
+                                    </button>
+                                </form>
                             )}
                         </div>
                     )}
@@ -437,80 +429,75 @@
                     tempInput.value = output;
                     document.body.appendChild(tempInput);
                     tempInput.select();
-                    document.execCommand('copy');
+                    // Use document.execCommand('copy') as navigator.clipboard might not work in iframe environments
+                    document.execCommand('copy'); 
+                    alert("Copied to clipboard!"); // Note: Custom alert used here
                     document.body.removeChild(tempInput);
                 }
             };
 
             return (
-                <div className="p-6 bg-white rounded-lg shadow-2xl w-full max-w-4xl">
-                    <div className="flex justify-between items-center mb-6 border-b pb-4">
-                        <h2 className="text-3xl font-bold text-gray-800 flex items-center">
-                            <Code className="w-6 h-6 mr-3 text-purple-600" />
-                            Content Encoder & Decoder (Base64)
-                        </h2>
+                <div className="w-full max-w-4xl p-8 bg-white shadow-2xl rounded-xl">
+                    <h2 className="text-3xl font-extrabold text-gray-900 mb-6 flex items-center">
+                        <Code className="w-7 h-7 mr-3 text-purple-600" />
+                        Content Encoder & Decoder (Base64)
+                    </h2>
+                    <div className="flex justify-between items-center mb-6 border-b pb-4 border-gray-200">
                         <button
                             onClick={() => setRoute('dashboard')}
                             className="flex items-center bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-200 font-medium text-sm shadow-md active:shadow-none"
                         >
                             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
                         </button>
+                        <div className="space-x-2 flex">
+                            <button
+                                onClick={() => { setMode('encode'); setInput(''); setOutput(''); }}
+                                className={`px-4 py-2 rounded-lg font-semibold transition ${mode === 'encode' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                            >
+                                <UploadCloud className="w-4 h-4 inline mr-2" /> Encode HTML to String
+                            </button>
+                            <button
+                                onClick={() => { setMode('decode'); setInput(''); setOutput(''); }}
+                                className={`px-4 py-2 rounded-lg font-semibold transition ${mode === 'decode' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                            >
+                                <RefreshCw className="w-4 h-4 inline mr-2" /> Decode String to HTML
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="flex space-x-2 mb-4">
-                        <button
-                            onClick={() => { setMode('encode'); setInput(''); setOutput(''); }}
-                            className={`px-4 py-2 rounded-lg font-semibold transition ${mode === 'encode' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                        >
-                            Encode HTML to String
-                        </button>
-                        <button
-                            onClick={() => { setMode('decode'); setInput(''); setOutput(''); }}
-                            className={`px-4 py-2 rounded-lg font-semibold transition ${mode === 'decode' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                        >
-                            Decode String to HTML
-                        </button>
-                    </div>
-
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                {mode === 'encode' ? 'Raw HTML/JS Input (Must be complete HTML)' : 'Base64 String Input'}
-                            </label>
+                            <label className="block text-lg font-semibold text-gray-800 mb-2">{mode === 'encode' ? 'Raw HTML/JS Input (Must be complete HTML)' : 'Base64 String Input'}</label>
                             <textarea
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
-                                rows="10"
-                                className="w-full px-4 py-3 font-mono text-xs border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 shadow-inner resize-y"
-                                placeholder={mode === 'encode' ? '<!DOCTYPE html><html>...</html>' : 'Paste your random letter string here...'}
-                            ></textarea>
+                                rows={8}
+                                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 shadow-inner resize-y"
+                                placeholder={mode === 'encode' ? "Paste your complete HTML game code here..." : "Paste the Base64 string here..."}
+                            />
                         </div>
-
                         <button
                             onClick={handleProcess}
-                            className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 transition duration-200 ease-in-out font-bold text-lg shadow-lg flex items-center justify-center active:shadow-none"
+                            className="w-full bg-purple-600 text-white py-3 px-6 rounded-lg font-bold text-lg hover:bg-purple-700 transition duration-200 shadow-xl active:shadow-none flex items-center justify-center"
                         >
                             {mode === 'encode' ? 'Encode to Base64 String' : 'Decode to HTML'}
                         </button>
-
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                {mode === 'encode' ? 'Base64 Output (Copy this!)' : 'Decoded HTML/JS Output'}
-                            </label>
+                            <label className="block text-lg font-semibold text-gray-800 mb-2">{mode === 'encode' ? 'Base64 Output (Copy this!)' : 'Decoded HTML/JS Output'}</label>
                             <div className="relative">
                                 <textarea
-                                    readOnly
                                     value={output}
-                                    rows="10"
-                                    className="w-full px-4 py-3 font-mono text-xs border border-gray-300 bg-gray-50 rounded-lg shadow-inner resize-y"
-                                    placeholder="Processed result will appear here..."
-                                ></textarea>
+                                    readOnly
+                                    rows={8}
+                                    className="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 shadow-inner resize-y"
+                                    placeholder="Output will appear here..."
+                                />
                                 {output && mode === 'encode' && (
                                     <button
                                         onClick={handleCopy}
-                                        className="absolute right-2 top-2 bg-indigo-500 text-white text-xs px-2 py-1 rounded hover:bg-indigo-600 transition"
+                                        className="absolute top-2 right-2 bg-indigo-500 text-white p-2 rounded-md hover:bg-indigo-600 transition text-sm font-medium flex items-center shadow-md"
                                     >
-                                        Copy String
+                                        <Code className="w-4 h-4 mr-1" /> Copy String
                                     </button>
                                 )}
                             </div>
@@ -533,7 +520,6 @@
                     setMessage('Please provide both a title and the Base64-encoded game string.');
                     return;
                 }
-
                 if (encodedGameString.length < 10) {
                     setMessage('The input string is too short to be valid Base64 content.');
                     return;
@@ -561,22 +547,21 @@
             };
 
             return (
-                <div className="p-6 bg-white rounded-lg shadow-2xl">
-                    <h2 className="text-3xl font-bold text-indigo-700 mb-6 flex items-center">
-                        <Lock className="w-6 h-6 mr-3" />
+                <div className="w-full p-6 bg-white shadow-2xl rounded-xl border border-red-300">
+                    <h3 className="text-xl font-bold text-red-700 mb-4 flex items-center">
+                        <Settings className="w-5 h-5 mr-3" />
                         Admin Panel: Add New Encoded Game
-                    </h2>
-                    <p className="text-sm text-gray-600 mb-4">
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
                         You must use the **Content Encoder Utility** to convert your HTML game code into a Base64 string before publishing here.
                     </p>
 
-                    {message && (
-                        <div className={`p-3 rounded-lg mb-4 font-medium text-sm ${message.includes('successfully') ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-red-100 text-red-700 border border-red-300'}`}>
-                            {message}
-                        </div>
-                    )}
-
                     <form onSubmit={handleAddGame} className="space-y-4">
+                        {message && (
+                            <div className={`p-3 rounded-lg font-medium text-sm border ${message.startsWith('Game added') ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
+                                {message}
+                            </div>
+                        )}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Game Title</label>
                             <input
@@ -593,17 +578,16 @@
                             <textarea
                                 value={encodedGameString}
                                 onChange={(e) => setEncodedGameString(e.target.value)}
-                                rows="8"
-                                className="w-full px-4 py-3 font-mono text-xs border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-inner resize-y"
-                                placeholder="Paste your generated Base64 string here..."
+                                rows={6}
+                                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-inner resize-y"
+                                placeholder="Paste the Base64 encoded string here..."
                                 required
-                            ></textarea>
+                            />
                         </div>
                         <button
                             type="submit"
-                            className="w-full bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition duration-200 ease-in-out font-bold text-lg shadow-lg flex items-center justify-center active:shadow-none"
+                            className="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 font-bold transition duration-200 shadow-md active:shadow-none"
                         >
-                            <UploadCloud className="w-5 h-5 mr-2" />
                             Publish Encoded Game
                         </button>
                     </form>
@@ -611,119 +595,131 @@
             );
         };
 
+
         const Dashboard = ({ user, games, onPlayGame, onLogout, onNavigate, db, userEncodedPassword }) => {
             return (
-                <div className="p-6 bg-gray-50 rounded-lg shadow-2xl w-full">
-                    <div className="flex justify-between items-start mb-6 border-b pb-4">
+                <div className="w-full max-w-4xl p-8 bg-white shadow-2xl rounded-xl">
+                    <div className="flex justify-between items-start border-b pb-4 mb-4">
                         <div>
-                            <h2 className="text-4xl font-extrabold text-gray-900">
+                            <h2 className="text-3xl font-extrabold text-gray-900 mb-1">
                                 Welcome, <span className="text-indigo-600">{user.username}</span>!
                             </h2>
-                            <p className="text-sm text-gray-500 mt-1">
-                                Role: <span className={`font-semibold ${user.role === 'admin' ? 'text-red-500' : 'text-green-500'}`}>{user.role.toUpperCase()}</span> | User ID: {user.uid}
+                            <p className="text-sm text-gray-500">
+                                Role: <span className="font-semibold text-gray-700">{user.role.toUpperCase()}</span> | User ID: <span className="font-mono text-xs bg-gray-100 p-1 rounded">{user.uid}</span>
                             </p>
                         </div>
                         <button
                             onClick={onLogout}
-                            className="bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-200 font-medium text-sm shadow-md active:shadow-none"
+                            className="flex items-center bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 font-medium transition duration-200 shadow-md active:shadow-none"
                         >
-                            Log Out
+                            <LogIn className="w-4 h-4 mr-2" style={{ transform: 'scaleX(-1)' }} /> Log Out
                         </button>
                     </div>
-                    
-                    {/* Password Change Form */}
+
+                    {/* NEW: Password Change Form */}
                     <PasswordChangeForm user={user} db={db} userEncodedPassword={userEncodedPassword} />
 
+                    {/* Admin Tools */}
                     {user.role === 'admin' && (
-                        <div className="mt-6 mb-6 flex space-x-4 border-t pt-6">
+                        <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200 shadow-inner space-y-3">
+                            <h3 className="text-lg font-bold text-indigo-700 flex items-center">
+                                <Code className="w-5 h-5 mr-2" /> Admin Tools
+                            </h3>
                             <button
                                 onClick={() => onNavigate('encoder')}
                                 className="flex items-center px-4 py-2 rounded-lg font-semibold text-white bg-purple-600 hover:bg-purple-700 transition shadow-lg"
                             >
-                                <Code className="w-4 h-4 mr-2" /> Content Encoder Utility
+                                <UploadCloud className="w-4 h-4 mr-2" /> Content Encoder Utility
                             </button>
+                            <AdminPanel user={user} db={db} />
                         </div>
                     )}
 
-
-                    <div className="mb-10 mt-6 border-t pt-6">
-                        <h3 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
-                            <Gamepad className="w-5 h-5 mr-2 text-indigo-500" />
-                            Available Games ({games.length})
-                        </h3>
-                        {games.length === 0 ? (
-                            <div className="p-6 text-center bg-white rounded-xl shadow-md border border-gray-200">
-                                <p className="text-gray-500 italic">No games have been added yet.</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {games.map(game => (
-                                    <div key={game.id} className="bg-white p-5 rounded-xl shadow-lg border border-indigo-100 hover:shadow-xl transition duration-300">
-                                        <h4 className="text-xl font-semibold text-gray-800 mb-2">{game.title}</h4>
+                    <h3 className="text-2xl font-bold text-gray-800 mt-8 mb-4 border-b pb-2 flex items-center">
+                        <Gamepad className="w-5 h-5 mr-3 text-indigo-600" />
+                        Available Games ({games.length})
+                    </h3>
+                    
+                    {games.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
+                            <AlertTriangle className="w-6 h-6 inline mr-2 text-yellow-500" />
+                            No games have been added yet. {user.role === 'admin' && "Please use the Admin Panel above to publish your first game."}
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {games.map(game => (
+                                <div key={game.id} className="bg-gray-50 p-5 rounded-xl shadow-lg border border-gray-200 flex flex-col justify-between hover:shadow-xl transition duration-300">
+                                    <div>
+                                        <h4 className="text-xl font-bold text-indigo-700 mb-1">{game.title}</h4>
                                         <p className="text-xs text-gray-500 mb-3">Added by: {game.addedBy || 'N/A'}</p>
-                                        <button
-                                            onClick={() => onPlayGame(game)}
-                                            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 font-medium transition duration-200 shadow-md active:shadow-none"
-                                        >
-                                            Play Now
-                                        </button>
                                     </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {user.role === 'admin' && <AdminPanel user={user} db={db} />}
+                                    <button
+                                        onClick={() => onPlayGame(game)}
+                                        className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 font-medium transition duration-200 shadow-md active:shadow-none mt-4"
+                                    >
+                                        <Gamepad className="w-4 h-4 inline mr-2" /> Play Now
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             );
         };
 
         const GamePlayer = ({ game, onBack }) => {
-            
             // 1. Decode the Base64 string back into raw HTML content using useMemo for stability
             const decodedHtml = useMemo(() => {
                 return decodeBase64(game.content);
-            }, [game.content]); 
-            
+            }, [game.content]);
+
             // 2. Check for decoding error
             const isError = decodedHtml.startsWith("Error");
-            
+
             if (isError) {
                 return (
-                    <div className="p-8 bg-red-100 rounded-lg shadow-2xl w-full max-w-xl text-center">
-                        <h2 className="text-2xl font-bold text-red-700 mb-4">Content Error</h2>
-                        <p className="text-red-600 mb-6">{decodedHtml}</p>
+                    <div className="w-full max-w-4xl p-8 bg-white shadow-2xl rounded-xl">
+                        <h2 className="text-3xl font-extrabold text-red-600 mb-6 flex items-center">
+                            <AlertTriangle className="w-7 h-7 mr-3" /> Content Error
+                        </h2>
+                        <div className="bg-red-100 text-red-700 p-4 rounded-lg font-mono text-sm overflow-auto max-h-60 border border-red-300 mb-4">
+                            {decodedHtml}
+                        </div>
                         <button
                             onClick={onBack}
-                            className="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 font-medium transition duration-200 shadow-md active:shadow-none"
+                            className="flex items-center bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 font-medium transition duration-200 shadow-md active:shadow-none"
                         >
-                            Back to Dashboard
+                            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
                         </button>
                     </div>
                 );
             }
 
+            // 3. Render the game using an iframe's srcDoc attribute
             return (
-                <div className="p-4 bg-gray-900 rounded-lg shadow-2xl h-[90vh] flex flex-col w-full max-w-6xl">
-                    <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-700">
-                        <h2 className="text-2xl font-bold text-white">Playing: {game.title}</h2>
+                <div className="w-full p-6 bg-white shadow-2xl rounded-xl">
+                    <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
+                        <h2 className="text-3xl font-extrabold text-indigo-600 flex items-center">
+                            <Gamepad className="w-7 h-7 mr-3" /> Playing: {game.title}
+                        </h2>
                         <button
                             onClick={onBack}
-                            className="bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 transition duration-200 font-medium shadow-md active:shadow-none"
+                            className="flex items-center bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 font-medium transition duration-200 shadow-md active:shadow-none"
                         >
-                            Back to Dashboard
+                            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
                         </button>
                     </div>
-                    <div className="flex-grow bg-white rounded-lg overflow-hidden">
-                        <iframe
-                            srcDoc={decodedHtml}
-                            title={game.title}
-                            // IMPORTANT: Sandbox attributes are crucial for security when loading dynamic content.
-                            sandbox="allow-scripts allow-forms allow-same-origin"
-                            className="w-full h-full border-none"
-                        ></iframe>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2">The content was successfully decoded and loaded via `srcDoc`. If the game doesn't run, ensure the original HTML was complete and valid.</p>
+
+                    <iframe 
+                        srcDoc={decodedHtml} 
+                        className="game-iframe" 
+                        title={game.title} 
+                        sandbox="allow-scripts allow-same-origin"
+                    />
+
+                    <p className="text-xs text-gray-500 mt-4 p-2 bg-gray-50 rounded">
+                        The content was successfully decoded and loaded via `srcDoc`. If the game doesn't run, ensure the original HTML was complete and valid.
+                    </p>
                 </div>
             );
         };
@@ -732,80 +728,95 @@
         const App = () => {
             const [db, setDb] = useState(null);
             const [auth, setAuth] = useState(null);
-            // User state now includes encodedPassword
-            const [user, setUser] = useState(null); // { uid, username, role, isReady, encodedPassword } 
+            // User state now includes encodedPassword for local use
+            const [user, setUser] = useState(null); // { uid, username, role, isReady, encodedPassword }
             const [games, setGames] = useState([]);
             const [route, setRoute] = useState('login'); // 'login', 'dashboard', 'encoder', 'playGame'
             const [activeGame, setActiveGame] = useState(null);
-            const [isAuthReady, setIsAuthReady] = useState(false); 
+            const [isAuthReady, setIsAuthReady] = useState(false);
 
             // 1. Initialize Firebase and Setup Auth Listener
             useEffect(() => {
                 if (Object.keys(firebaseConfig).length === 0) {
                     console.error("Firebase config is missing.");
-                    // Fallback state if config is missing but allow UI to render login
-                    setIsAuthReady(true); 
+                    // Fallback state if Firebase is totally unconfigured
+                    setUser({ isReady: true, role: 'unconfigured' }); 
+                    setIsAuthReady(true);
                     return;
                 }
 
-                const app = initializeApp(firebaseConfig);
-                const firestore = getFirestore(app);
-                const authService = getAuth(app);
-                setDb(firestore);
-                setAuth(authService);
-                
-                // --- Start Auth Flow ---
-                const unsubscribeAuth = onAuthStateChanged(authService, async (currentUser) => {
-                    if (currentUser) {
-                        // If the user is authenticated (even anonymously), check if they have a registered user profile document
-                        const userDocRef = doc(firestore, `/artifacts/${appId}/public/data/users`, currentUser.uid);
-                        const docSnap = await getDoc(userDocRef);
+                try {
+                    const app = initializeApp(firebaseConfig);
+                    const firestore = getFirestore(app);
+                    const authService = getAuth(app);
+                    setDb(firestore);
+                    setAuth(authService);
+                    
+                    // --- Start Auth Flow ---
+                    const unsubscribeAuth = onAuthStateChanged(authService, async (currentUser) => {
+                        if (currentUser) {
+                            // If the user is authenticated (even anonymously), check if they have a registered user profile document
+                            const userDocRef = doc(firestore, `/artifacts/${appId}/public/data/users`, currentUser.uid);
+                            const docSnap = await getDoc(userDocRef);
 
-                        if (docSnap.exists()) {
-                            const userData = docSnap.data();
-                            // IMPORTANT: Include encodedPassword in user state for password change checks
-                            setUser({ ...userData, uid: currentUser.uid, isReady: true, role: userData.role || 'player', encodedPassword: userData.encodedPassword });
-                            setRoute('dashboard');
-                        } else {
-                            // User is authenticated but no profile exists. Must log in/register.
-                            setUser({ uid: currentUser.uid, isReady: true, role: 'unknown' });
-                            setRoute('login');
-                        }
-                    } else {
-                        // No authenticated user, sign in anonymously to prepare for registration/login
-                        try {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(authService, initialAuthToken);
+                            if (docSnap.exists()) {
+                                const userData = docSnap.data();
+                                // IMPORTANT: Include encodedPassword in user state for password change checks
+                                setUser({ 
+                                    ...userData, 
+                                    uid: currentUser.uid, 
+                                    isReady: true, 
+                                    role: userData.role || 'player', 
+                                    encodedPassword: userData.encodedPassword 
+                                });
+                                setRoute('dashboard');
                             } else {
-                                await signInAnonymously(authService);
+                                // User is authenticated but no profile exists. Must log in/register.
+                                setUser({ uid: currentUser.uid, isReady: true, role: 'unknown', encodedPassword: null });
+                                setRoute('login');
                             }
-                        } catch (e) {
-                            console.error("Firebase initial sign-in error:", e);
-                            setUser({ isReady: true });
-                            setRoute('login');
+                        } else {
+                            // No authenticated user, sign in anonymously to prepare for registration/login
+                            try {
+                                if (initialAuthToken) {
+                                    await signInWithCustomToken(authService, initialAuthToken);
+                                } else {
+                                    await signInAnonymously(authService);
+                                }
+                            } catch (e) {
+                                console.error("Firebase initial sign-in error:", e);
+                                // If anonymous sign-in fails, we still mark ready, but stay on login screen.
+                                setUser({ isReady: true, role: 'error' });
+                                setRoute('login');
+                            }
                         }
-                    }
-                    setIsAuthReady(true);
-                });
+                        setIsAuthReady(true);
+                    });
 
-                return () => {
-                    if (typeof unsubscribeAuth === 'function') {
-                        unsubscribeAuth();
-                    }
-                };
+                    return () => {
+                        if (typeof unsubscribeAuth === 'function') {
+                            unsubscribeAuth();
+                        }
+                    };
+                } catch (e) {
+                    console.error("Critical Firebase Initialization Error:", e);
+                    setUser({ isReady: true, role: 'error' }); 
+                    setIsAuthReady(true);
+                }
             }, []);
 
             // 2. Load Games from Public Firestore Collection (Dependent on DB readiness and User Auth)
             useEffect(() => {
-                if (db && user?.uid && user?.isReady) {
+                // Only listen for games if DB is ready and we are authenticated enough to know the UID
+                if (db && user?.uid && user?.isReady) { 
                     // All users (admins and players) listen to the same public path for games.
                     const gamesCollectionRef = collection(db, `/artifacts/${appId}/public/data/games`);
                     const q = query(gamesCollectionRef);
 
                     const unsubscribeGames = onSnapshot(q, (snapshot) => {
-                        const fetchedGames = snapshot.docs.map(doc => ({
-                            id: doc.id,
-                            ...doc.data()
+                        const fetchedGames = snapshot.docs.map(doc => ({ 
+                            id: doc.id, 
+                            ...doc.data() 
                         }));
                         setGames(fetchedGames);
                     }, (error) => {
@@ -817,11 +828,6 @@
             }, [db, user?.uid, user?.isReady]);
 
             // Handlers
-            const handleLoginSuccess = (userData) => {
-                setUser(userData);
-                setRoute('dashboard');
-            };
-
             const handlePlayGame = (game) => {
                 setActiveGame(game);
                 setRoute('playGame');
@@ -837,7 +843,7 @@
                     await signOut(auth);
                 }
                 // Force reload to get a new anonymous user/reset state
-                window.location.reload(); 
+                window.location.reload();
             };
 
             const renderContent = () => {
@@ -845,53 +851,53 @@
                 if (!isAuthReady || !db || !auth) {
                     return <LoadingIndicator />;
                 }
+                
+                // Fallback for unconfigured/error state
+                if (user?.role === 'unconfigured' || user?.role === 'error') {
+                     return (
+                        <div className="w-full max-w-lg p-8 bg-white shadow-2xl rounded-xl text-center">
+                            <h2 className="text-3xl font-extrabold text-red-600 mb-4">Setup Error</h2>
+                            <p className="text-gray-700">The application failed to initialize Firebase. Please ensure the `__firebase_config` variable is correctly provided by the environment.</p>
+                            <button onClick={() => window.location.reload()} className="mt-4 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 flex items-center mx-auto">
+                                <RefreshCw className="w-4 h-4 mr-2" /> Try Reloading
+                            </button>
+                        </div>
+                    );
+                }
 
                 switch (route) {
                     case 'login':
-                        return <AuthScreen setUser={handleLoginSuccess} db={db} auth={auth} />;
+                        // ** UPDATED: Pass setRoute to AuthScreen **
+                        return <AuthScreen setUser={setUser} db={db} auth={auth} setRoute={setRoute} />;
                     case 'dashboard':
                         // Check if user object is fully populated before rendering dashboard
                         if (user?.isReady) {
-                            return <Dashboard 
-                                        user={user} 
-                                        games={games} 
-                                        onPlayGame={handlePlayGame} 
-                                        onLogout={handleLogout} 
-                                        onNavigate={setRoute} 
-                                        db={db} 
-                                        userEncodedPassword={user.encodedPassword} // Pass for validation
-                                    />;
+                            return <Dashboard user={user} games={games} onPlayGame={handlePlayGame} onLogout={handleLogout} onNavigate={setRoute} db={db} userEncodedPassword={user.encodedPassword} />;
                         }
-                        return <LoadingIndicator />;
+                        return <LoadingIndicator />; // Should theoretically not happen if isAuthReady is true
                     case 'encoder':
                         return <EncoderDecoder setRoute={setRoute} />;
                     case 'playGame':
                         return <GamePlayer game={activeGame} onBack={handleBackToDashboard} />;
                     default:
-                        return <AuthScreen setUser={handleLoginSuccess} db={db} auth={auth} />;
+                        return <LoadingIndicator />;
                 }
             };
 
             return (
-                <div className="min-h-screen bg-gray-100 p-4 sm:p-8 flex flex-col items-center justify-center font-sans">
-                    <header className="mb-8 w-full max-w-6xl text-center">
-                        <h1 className="text-5xl font-extrabold text-indigo-800 tracking-tight">
-                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600">
-                                Arcade Host
-                            </span>
+                <div className="min-h-screen flex flex-col items-center py-10 px-4 bg-gray-100">
+                    <header className="mb-8 text-center">
+                        <h1 className="text-5xl font-extrabold text-gray-900 flex items-center justify-center">
+                            <Gamepad className="w-10 h-10 mr-4 text-indigo-600" /> Arcade Host
                         </h1>
-                        <p className="text-lg text-gray-500 mt-2">The collaborative platform for shared Base64-encoded games.</p>
+                        <p className="text-lg text-gray-600 mt-2">The collaborative platform for shared Base64-encoded games.</p>
                     </header>
-                    <main className="w-full max-w-6xl flex-grow flex justify-center items-start">
-                        {renderContent()}
-                    </main>
+                    {renderContent()}
                 </div>
             );
         };
 
-        // Render the main application component
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 </html>
