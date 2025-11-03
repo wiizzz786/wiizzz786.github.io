@@ -56,10 +56,45 @@
 
     <!-- The React App Logic (Transpiled by Babel) -->
     <script type="text/babel">
-        // Global variables provided by the Canvas environment (must be handled defensively)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // --- 1. DUMMY CONFIGURATION FOR LOCAL TESTING ---
+        // These values are used if the app is run outside the Canvas environment where __firebase_config is not available.
+        const DUMMY_FIREBASE_CONFIG = {
+            apiKey: "DUMMY_LOCAL_API_KEY", // Needs to be a string
+            authDomain: "dummy-arcade.firebaseapp.com",
+            projectId: "dummy-arcade-12345", 
+            storageBucket: "dummy-arcade.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:localapp123"
+        };
+        const DUMMY_APP_ID = 'local-dev-arcade-app';
+        
+        // --- 2. ROBUST CHECK FOR ENVIRONMENT VARIABLES ---
+        
+        // Check if we are running in the Canvas environment or locally
+        const IS_CANVAS_ENV = typeof __app_id !== 'undefined';
+        
+        // Set the app ID, using a dummy value if the global is missing
+        const appId = IS_CANVAS_ENV ? __app_id : DUMMY_APP_ID;
+
+        // Set the Firebase Config, using the dummy config if the global is missing
+        let firebaseConfig;
+        if (IS_CANVAS_ENV && typeof __firebase_config !== 'undefined' && __firebase_config) {
+            try {
+                // In Canvas, try to parse the provided JSON string
+                firebaseConfig = JSON.parse(__firebase_config);
+            } catch (e) {
+                console.error("Failed to parse __firebase_config, falling back to dummy config.", e);
+                firebaseConfig = DUMMY_FIREBASE_CONFIG;
+            }
+        } else {
+            // Outside Canvas, or if config is missing/invalid, use the dummy config
+            firebaseConfig = DUMMY_FIREBASE_CONFIG;
+        }
+
+        // Set the initial auth token (null if missing, which triggers anonymous sign-in)
+        const initialAuthToken = IS_CANVAS_ENV && typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
 
         // Hardcoded admin credentials
         const HARDCODED_ADMIN_USERNAME = "hkh";
@@ -431,7 +466,16 @@
                     tempInput.select();
                     // Use document.execCommand('copy') as navigator.clipboard might not work in iframe environments
                     document.execCommand('copy'); 
-                    alert("Copied to clipboard!"); // Note: Custom alert used here
+                    // Use custom message box instead of alert()
+                    const messageBox = document.createElement('div');
+                    messageBox.textContent = "Copied to clipboard!";
+                    messageBox.className = "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-500 text-white px-6 py-3 rounded-xl shadow-2xl z-50 text-lg font-bold transition-opacity duration-300";
+                    document.body.appendChild(messageBox);
+                    setTimeout(() => {
+                        messageBox.style.opacity = '0';
+                        setTimeout(() => document.body.removeChild(messageBox), 300);
+                    }, 1000);
+                    
                     document.body.removeChild(tempInput);
                 }
             };
@@ -737,13 +781,8 @@
 
             // 1. Initialize Firebase and Setup Auth Listener
             useEffect(() => {
-                if (Object.keys(firebaseConfig).length === 0) {
-                    console.error("Firebase config is missing.");
-                    // Fallback state if Firebase is totally unconfigured
-                    setUser({ isReady: true, role: 'unconfigured' }); 
-                    setIsAuthReady(true);
-                    return;
-                }
+                // We no longer need an initial check as the environment variables are guaranteed to be set 
+                // either by the Canvas (real) or by the robust fallback (dummy).
 
                 try {
                     const app = initializeApp(firebaseConfig);
@@ -779,13 +818,15 @@
                             // No authenticated user, sign in anonymously to prepare for registration/login
                             try {
                                 if (initialAuthToken) {
+                                    // Use custom token provided by Canvas (in-browser)
                                     await signInWithCustomToken(authService, initialAuthToken);
                                 } else {
+                                    // Use anonymous sign-in (local fallback)
                                     await signInAnonymously(authService);
                                 }
                             } catch (e) {
                                 console.error("Firebase initial sign-in error:", e);
-                                // If anonymous sign-in fails, we still mark ready, but stay on login screen.
+                                // If sign-in fails, we still mark ready, but stay on login screen.
                                 setUser({ isReady: true, role: 'error' });
                                 setRoute('login');
                             }
@@ -857,7 +898,7 @@
                      return (
                         <div className="w-full max-w-lg p-8 bg-white shadow-2xl rounded-xl text-center">
                             <h2 className="text-3xl font-extrabold text-red-600 mb-4">Setup Error</h2>
-                            <p className="text-gray-700">The application failed to initialize Firebase. Please ensure the `__firebase_config` variable is correctly provided by the environment.</p>
+                            <p className="text-gray-700">The application failed to initialize Firebase, likely due to an API key or configuration error. If running locally, ensure the dummy config is valid.</p>
                             <button onClick={() => window.location.reload()} className="mt-4 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 flex items-center mx-auto">
                                 <RefreshCw className="w-4 h-4 mr-2" /> Try Reloading
                             </button>
