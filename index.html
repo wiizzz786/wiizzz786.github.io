@@ -63,7 +63,7 @@
             authDomain: "dummy-auth.firebaseapp.com",
             projectId: "dummy-project-12345", 
             appId: "1:123:web:dummy",
-            storageBucket: "dummy-bucket.appspot.com" // Added more required fields
+            storageBucket: "dummy-bucket.appspot.com" 
         };
         const DUMMY_APP_ID = 'local-dev-arcade-app';
         
@@ -161,15 +161,16 @@
                     return;
                 }
 
+                // Get the current authenticated user (should be the anonymous user set up in the main effect)
+                let currentUser = auth.currentUser;
+                
+                // If for some reason auth failed completely, handle gracefully
+                if (!currentUser) {
+                    setError("Authentication services failed to initialize. Cannot proceed with login/registration.");
+                    return;
+                }
+
                 try {
-                    // 1. Get the current authenticated user (sign in anonymously if necessary)
-                    let currentUser = auth.currentUser;
-                    if (!currentUser) {
-                        // This should ideally happen only once during initial load (in App component), but here as a fallback
-                        await signInAnonymously(auth);
-                        currentUser = auth.currentUser;
-                    }
-                    
                     // Encode the input password for verification/storage
                     const encodedPassword = encodeBase64(password);
                     const usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
@@ -257,8 +258,8 @@
                     }
 
                 } catch (err) {
-                    console.error("Auth Error:", err);
-                    setError(`Authentication failed: ${err.message}. Please try again.`);
+                    console.error("Auth/DB Error during Login/Registration:", err);
+                    setError(`Operation failed: ${err.message}. Please try again.`);
                 }
             };
 
@@ -353,7 +354,9 @@
                 }
 
                 const encodedOldPassword = encodeBase64(oldPassword);
-                if (encodedOldPassword !== userEncodedPassword) {
+                // Note: userEncodedPassword will be empty for Local Guest/Failed Auth users, 
+                // but since they don't have a real password to check against anyway, we allow it.
+                if (userEncodedPassword && encodedOldPassword !== userEncodedPassword) {
                     setMessage('Error: Current password is incorrect.');
                     return;
                 }
@@ -410,21 +413,30 @@
                                             {message}
                                         </div>
                                     )}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-                                        <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">New Password (6+ characters)</label>
-                                        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-                                        <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
-                                    </div>
-                                    <button type="submit" className="w-full bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 font-medium transition duration-200 shadow-md">
-                                        Update Password
-                                    </button>
+                                    {user.username === 'LocalGuest' ? (
+                                        <div className="p-3 bg-yellow-100 text-yellow-700 rounded-lg font-medium text-sm border border-yellow-300">
+                                            <AlertTriangle className="inline w-4 h-4 mr-2" />
+                                            You are signed in as a **Local Guest**. Your credentials are not stored and cannot be changed.
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                                                <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">New Password (6+ characters)</label>
+                                                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                                                <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
+                                            </div>
+                                            <button type="submit" className="w-full bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 font-medium transition duration-200 shadow-md">
+                                                Update Password
+                                            </button>
+                                        </>
+                                    )}
                                 </form>
                             )}
                         </div>
@@ -643,16 +655,26 @@
                             <h2 className="text-3xl font-extrabold text-gray-900 mb-1">
                                 Welcome, <span className="text-indigo-600">{user.username}</span>!
                             </h2>
-                            <p className="text-sm text-gray-500">
-                                Role: <span className="font-semibold text-gray-700">{user.role.toUpperCase()}</span> | User ID: <span className="font-mono text-xs bg-gray-100 p-1 rounded">{user.uid}</span>
+                            <p className="text-sm text-gray-500 mt-1">
+                                {user.username === 'LocalGuest' ? (
+                                    <span className="font-semibold text-red-500 bg-red-100 p-1 rounded-md border border-red-300 inline-flex items-center">
+                                        <AlertTriangle className="w-4 h-4 mr-1"/> Authentication Failed. Using Local Guest Mode.
+                                    </span>
+                                ) : (
+                                    `Role: ${user.role.toUpperCase()}`
+                                )}
+                                
+                                | User ID: <span className="font-mono text-xs bg-gray-100 p-1 rounded">{user.uid}</span>
                             </p>
                         </div>
-                        <button
-                            onClick={onLogout}
-                            className="flex items-center bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 font-medium transition duration-200 shadow-md active:shadow-none"
-                        >
-                            <LogIn className="w-4 h-4 mr-2" style={{ transform: 'scaleX(-1)' }} /> Log Out
-                        </button>
+                        {user.username !== 'LocalGuest' && (
+                            <button
+                                onClick={onLogout}
+                                className="flex items-center bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 font-medium transition duration-200 shadow-md active:shadow-none"
+                            >
+                                <LogIn className="w-4 h-4 mr-2" style={{ transform: 'scaleX(-1)' }} /> Log Out
+                            </button>
+                        )}
                     </div>
 
                     {/* Password Change Form */}
@@ -770,15 +792,13 @@
                     <AlertTriangle className="w-7 h-7 mr-3" /> Critical Setup Error
                 </h2>
                 <p className="text-gray-700 mb-4">
-                    The application failed to initialize **Firebase services** (`initializeApp`). 
-                    This is often caused by invalid or missing configuration from the hosting environment.
+                    The application failed to initialize **Firebase services**. The configuration provided by the host environment is invalid.
                 </p>
                 <div className="text-left p-4 bg-red-50 rounded-lg border border-red-200 mb-6 text-sm text-gray-600">
-                    <p className="font-semibold text-red-700">Debugging Checklist:</p>
+                    <p className="font-semibold text-red-700">Debugging Details:</p>
                     <ul className="list-disc list-inside mt-1 space-y-1">
-                        <li>Check the console for specific `initializeApp` error details.</li>
-                        <li>Ensure the host platform is providing valid configuration data.</li>
-                        <li>If running locally, verify the dummy configuration has all required fields.</li>
+                        <li>The attempt to initialize Firebase failed at the root level.</li>
+                        <li>The app is blocked from running.</li>
                     </ul>
                 </div>
                 <button onClick={() => window.location.reload()} className="mt-4 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 flex items-center mx-auto">
@@ -797,7 +817,7 @@
             const [route, setRoute] = useState('loading'); // 'loading', 'login', 'dashboard', 'encoder', 'playGame'
             const [activeGame, setActiveGame] = useState(null);
             const [isAuthReady, setIsAuthReady] = useState(false);
-            const [isInitFailed, setIsInitFailed] = useState(false); // New state for critical failure
+            const [isInitFailed, setIsInitFailed] = useState(false); 
 
             // 1. Initialize Firebase and Setup Auth Listener
             useEffect(() => {
@@ -829,11 +849,12 @@
                                 });
                                 setRoute('dashboard');
                             } else {
+                                // Anonymous user exists but no profile found -> redirect to login/register screen
                                 setUser({ uid: currentUser.uid, isReady: true, role: 'unknown', encodedPassword: null });
                                 setRoute('login');
                             }
                         } else {
-                            // No authenticated user, sign in anonymously to prepare for registration/login
+                            // No authenticated user, attempt to sign in anonymously (or with custom token)
                             try {
                                 if (initialAuthToken) {
                                     await signInWithCustomToken(authService, initialAuthToken);
@@ -841,9 +862,21 @@
                                     await signInAnonymously(authService);
                                 }
                             } catch (e) {
-                                console.error("Firebase initial sign-in error:", e);
-                                setUser({ isReady: true, role: 'unknown', encodedPassword: null });
-                                setRoute('login');
+                                console.error("Firebase initial sign-in error (Handling API Key failure):", e);
+                                
+                                // --- AUTH BYPASS: Force Local User State on Auth Error ---
+                                // If the sign-in fails (most likely due to 'auth/api-key-not-valid'), 
+                                // we force a local, non-Firebase-managed user to proceed.
+                                const localUid = 'local-player-' + Math.random().toString(36).substring(2, 9);
+                                setUser({ 
+                                    uid: localUid, 
+                                    username: 'LocalGuest', 
+                                    isReady: true, 
+                                    role: 'player', 
+                                    encodedPassword: '' 
+                                });
+                                setRoute('dashboard');
+                                // --- END BYPASS ---
                             }
                         }
                         setIsAuthReady(true);
@@ -851,7 +884,7 @@
                 } catch (e) {
                     console.error("CRITICAL: Failed to initialize Firebase services. Configuration might be invalid.", e);
                     setIsInitFailed(true); // Flag the critical failure
-                    setRoute('loading'); // Stay on loading temporarily until rendering handles the flag
+                    setRoute('loading'); 
                 }
                 
                 return () => {
@@ -895,6 +928,11 @@
 
             const handleLogout = async () => {
                 if (auth) {
+                    // For the LocalGuest, we just reload/reset state
+                    if (user.username === 'LocalGuest') {
+                        window.location.reload();
+                        return;
+                    }
                     await signOut(auth);
                 }
                 // Force reload to get a new anonymous user/reset state
@@ -914,6 +952,11 @@
 
                 switch (route) {
                     case 'login':
+                        // If we are LocalGuest, skip login screen and proceed to dashboard immediately.
+                        if (user?.username === 'LocalGuest') {
+                            setRoute('dashboard');
+                            return <LoadingIndicator />;
+                        }
                         return <AuthScreen setUser={setUser} db={db} auth={auth} setRoute={setRoute} />;
                     case 'dashboard':
                         // Ensure user state is complete before dashboard access
