@@ -58,42 +58,43 @@
     <script type="text/babel">
         
         // --- 1. DUMMY CONFIGURATION FOR LOCAL TESTING ---
-        // Simplified config to reduce risk of internal validation errors when running locally.
         const DUMMY_FIREBASE_CONFIG = {
             apiKey: "DUMMY_LOCAL_API_KEY", 
             authDomain: "dummy-auth.firebaseapp.com",
             projectId: "dummy-project-12345", 
-            appId: "1:123:web:dummy"
+            appId: "1:123:web:dummy",
+            storageBucket: "dummy-bucket.appspot.com" // Added more required fields
         };
         const DUMMY_APP_ID = 'local-dev-arcade-app';
         
         // --- 2. ROBUST CHECK FOR ENVIRONMENT VARIABLES ---
         
-        // Check if we are running in the Canvas environment or locally
         const IS_CANVAS_ENV = typeof __app_id !== 'undefined';
-        
-        // Set the app ID, using a dummy value if the global is missing
         const appId = IS_CANVAS_ENV ? __app_id : DUMMY_APP_ID;
 
-        // Set the Firebase Config, using the dummy config if the global is missing or unparseable
         let firebaseConfig;
+        let isConfigValid = false;
+
         if (IS_CANVAS_ENV && typeof __firebase_config !== 'undefined' && __firebase_config) {
             try {
-                // In Canvas, try to parse the provided JSON string
                 firebaseConfig = JSON.parse(__firebase_config);
+                // Simple validation check: ensure essential keys exist
+                if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+                    isConfigValid = true;
+                } else {
+                    console.error("Platform config is missing essential keys. Falling back to dummy.");
+                }
             } catch (e) {
                 console.error("Failed to parse __firebase_config, falling back to dummy config.", e);
-                firebaseConfig = DUMMY_FIREBASE_CONFIG;
             }
-        } else {
-            // Outside Canvas, or if config is missing/invalid, use the dummy config
+        }
+        
+        if (!isConfigValid) {
             firebaseConfig = DUMMY_FIREBASE_CONFIG;
         }
 
-        // Set the initial auth token (null if missing, which triggers anonymous sign-in)
         const initialAuthToken = IS_CANVAS_ENV && typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         
-
         // Hardcoded admin credentials
         const HARDCODED_ADMIN_USERNAME = "hkh";
         const HARDCODED_ADMIN_PASSWORD = "player9563";
@@ -143,7 +144,6 @@
         );
 
         // Unified Authentication Screen (handles both Login and Register)
-        // ** UPDATED: Added setRoute prop **
         const AuthScreen = ({ setUser, db, auth, setRoute }) => { 
             const [isLogin, setIsLogin] = useState(true);
             const [username, setUsername] = useState('');
@@ -165,6 +165,7 @@
                     // 1. Get the current authenticated user (sign in anonymously if necessary)
                     let currentUser = auth.currentUser;
                     if (!currentUser) {
+                        // This should ideally happen only once during initial load (in App component), but here as a fallback
                         await signInAnonymously(auth);
                         currentUser = auth.currentUser;
                     }
@@ -176,23 +177,21 @@
                     // --- HARDCODED ADMIN CHECK (Only on Login Path) ---
                     if (isLogin && username === HARDCODED_ADMIN_USERNAME && encodedPassword === encodeBase64(HARDCODED_ADMIN_PASSWORD)) {
                         
-                        // Admin login successful: Create/update their profile using the current UID
                         const adminUserDocRef = doc(db, `/artifacts/${appId}/public/data/users`, currentUser.uid);
                         await setDoc(adminUserDocRef, {
                             username: HARDCODED_ADMIN_USERNAME,
                             role: 'admin',
                             lastActivity: serverTimestamp(),
                             userId: currentUser.uid,
-                            encodedPassword: encodedPassword, // Store the encoded password
+                            encodedPassword: encodedPassword,
                         }, { merge: true });
 
                         setSuccess(`Welcome, Admin ${HARDCODED_ADMIN_USERNAME}! Redirecting...`);
-                        // ** UPDATED: setRoute('dashboard') added **
                         setTimeout(() => {
                             setUser({ uid: currentUser.uid, username: HARDCODED_ADMIN_USERNAME, role: 'admin', isReady: true, encodedPassword });
                             setRoute('dashboard');
                         }, 500);
-                        return; // Stop the regular Firestore check
+                        return;
                     }
 
 
@@ -228,7 +227,6 @@
                         }, { merge: true });
 
                         setSuccess(`Welcome back, ${existingUser.username}! Redirecting...`);
-                        // ** UPDATED: setRoute('dashboard') added **
                         setTimeout(() => {
                             setUser({ uid: currentUser.uid, username: existingUser.username, role: existingUser.role || 'player', isReady: true, encodedPassword: existingUser.encodedPassword });
                             setRoute('dashboard');
@@ -252,7 +250,6 @@
                         }, { merge: true });
 
                         setSuccess(`Registration successful for user: ${username}!`);
-                        // ** UPDATED: setRoute('dashboard') added **
                         setTimeout(() => {
                             setUser({ uid: currentUser.uid, username, role: 'player', isReady: true, encodedPassword });
                             setRoute('dashboard');
@@ -658,7 +655,7 @@
                         </button>
                     </div>
 
-                    {/* NEW: Password Change Form */}
+                    {/* Password Change Form */}
                     <PasswordChangeForm user={user} db={db} userEncodedPassword={userEncodedPassword} />
 
                     {/* Admin Tools */}
@@ -765,37 +762,64 @@
                 </div>
             );
         };
+        
+        // --- Component for Critical Initialization Failure ---
+        const CriticalInitError = () => (
+             <div className="w-full max-w-lg p-8 bg-white shadow-2xl rounded-xl text-center">
+                <h2 className="text-3xl font-extrabold text-red-600 mb-4 flex items-center justify-center">
+                    <AlertTriangle className="w-7 h-7 mr-3" /> Critical Setup Error
+                </h2>
+                <p className="text-gray-700 mb-4">
+                    The application failed to initialize **Firebase services** (`initializeApp`). 
+                    This is often caused by invalid or missing configuration from the hosting environment.
+                </p>
+                <div className="text-left p-4 bg-red-50 rounded-lg border border-red-200 mb-6 text-sm text-gray-600">
+                    <p className="font-semibold text-red-700">Debugging Checklist:</p>
+                    <ul className="list-disc list-inside mt-1 space-y-1">
+                        <li>Check the console for specific `initializeApp` error details.</li>
+                        <li>Ensure the host platform is providing valid configuration data.</li>
+                        <li>If running locally, verify the dummy configuration has all required fields.</li>
+                    </ul>
+                </div>
+                <button onClick={() => window.location.reload()} className="mt-4 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 flex items-center mx-auto">
+                    <RefreshCw className="w-4 h-4 mr-2" /> Try Reloading
+                </button>
+            </div>
+        );
+
 
         // --- Main Application Component ---
         const App = () => {
             const [db, setDb] = useState(null);
             const [auth, setAuth] = useState(null);
-            // User state now includes encodedPassword for local use
             const [user, setUser] = useState(null); // { uid, username, role, isReady, encodedPassword }
             const [games, setGames] = useState([]);
-            const [route, setRoute] = useState('login'); // 'login', 'dashboard', 'encoder', 'playGame'
+            const [route, setRoute] = useState('loading'); // 'loading', 'login', 'dashboard', 'encoder', 'playGame'
             const [activeGame, setActiveGame] = useState(null);
             const [isAuthReady, setIsAuthReady] = useState(false);
+            const [isInitFailed, setIsInitFailed] = useState(false); // New state for critical failure
 
             // 1. Initialize Firebase and Setup Auth Listener
             useEffect(() => {
+                let authService, firestore;
+                let unsubscribeAuth = () => {};
+
                 try {
+                    // Try to initialize core services
                     const app = initializeApp(firebaseConfig);
-                    const firestore = getFirestore(app);
-                    const authService = getAuth(app);
+                    firestore = getFirestore(app);
+                    authService = getAuth(app);
                     setDb(firestore);
                     setAuth(authService);
                     
-                    // --- Start Auth Flow ---
-                    const unsubscribeAuth = onAuthStateChanged(authService, async (currentUser) => {
+                    // --- Start Auth Flow only if initialization succeeded ---
+                    unsubscribeAuth = onAuthStateChanged(authService, async (currentUser) => {
                         if (currentUser) {
-                            // If the user is authenticated (even anonymously), check if they have a registered user profile document
                             const userDocRef = doc(firestore, `/artifacts/${appId}/public/data/users`, currentUser.uid);
                             const docSnap = await getDoc(userDocRef);
 
                             if (docSnap.exists()) {
                                 const userData = docSnap.data();
-                                // IMPORTANT: Include encodedPassword in user state for password change checks
                                 setUser({ 
                                     ...userData, 
                                     uid: currentUser.uid, 
@@ -805,7 +829,6 @@
                                 });
                                 setRoute('dashboard');
                             } else {
-                                // User is authenticated but no profile exists. Must log in/register.
                                 setUser({ uid: currentUser.uid, isReady: true, role: 'unknown', encodedPassword: null });
                                 setRoute('login');
                             }
@@ -813,40 +836,35 @@
                             // No authenticated user, sign in anonymously to prepare for registration/login
                             try {
                                 if (initialAuthToken) {
-                                    // Use custom token provided by Canvas (in-browser)
                                     await signInWithCustomToken(authService, initialAuthToken);
                                 } else {
-                                    // Use anonymous sign-in (local fallback)
                                     await signInAnonymously(authService);
                                 }
                             } catch (e) {
                                 console.error("Firebase initial sign-in error:", e);
-                                // If sign-in fails, we still mark ready, but stay on login screen.
-                                setUser({ isReady: true, role: 'unknown', encodedPassword: null }); // Set to unknown to trigger login
+                                setUser({ isReady: true, role: 'unknown', encodedPassword: null });
                                 setRoute('login');
                             }
                         }
                         setIsAuthReady(true);
                     });
-
-                    return () => {
-                        if (typeof unsubscribeAuth === 'function') {
-                            unsubscribeAuth();
-                        }
-                    };
                 } catch (e) {
-                    console.error("Critical Firebase Initialization Error:", e);
-                    // This block executes if initializeApp fails. Set an explicit error state.
-                    setUser({ uid: null, isReady: true, role: 'error', encodedPassword: null }); 
-                    setIsAuthReady(true);
+                    console.error("CRITICAL: Failed to initialize Firebase services. Configuration might be invalid.", e);
+                    setIsInitFailed(true); // Flag the critical failure
+                    setRoute('loading'); // Stay on loading temporarily until rendering handles the flag
                 }
+                
+                return () => {
+                    if (typeof unsubscribeAuth === 'function') {
+                        unsubscribeAuth();
+                    }
+                };
             }, []);
 
-            // 2. Load Games from Public Firestore Collection (Dependent on DB readiness and User Auth)
+            // 2. Load Games from Public Firestore Collection 
             useEffect(() => {
                 // Only listen for games if DB is ready and we are authenticated enough to know the UID
-                if (db && user?.uid && user?.isReady) { 
-                    // All users (admins and players) listen to the same public path for games.
+                if (db && auth && user?.uid && user?.isReady) { 
                     const gamesCollectionRef = collection(db, `/artifacts/${appId}/public/data/games`);
                     const q = query(gamesCollectionRef);
 
@@ -862,7 +880,7 @@
 
                     return () => unsubscribeGames();
                 }
-            }, [db, user?.uid, user?.isReady]);
+            }, [db, auth, user?.uid, user?.isReady]);
 
             // Handlers
             const handlePlayGame = (game) => {
@@ -884,35 +902,25 @@
             };
 
             const renderContent = () => {
-                // 1. Wait for user auth status to be resolved
-                if (!isAuthReady || !db || !auth) {
-                    return <LoadingIndicator />;
+                // Check 1: Critical Initialization Failure
+                if (isInitFailed) {
+                    return <CriticalInitError />;
                 }
                 
-                // 2. Fallback for unconfigured/error state
-                if (user?.role === 'error') {
-                     return (
-                        <div className="w-full max-w-lg p-8 bg-white shadow-2xl rounded-xl text-center">
-                            <h2 className="text-3xl font-extrabold text-red-600 mb-4">Setup Error</h2>
-                            <p className="text-gray-700 mb-4">The application failed to initialize Firebase, likely due to an API key or configuration error during startup.</p>
-                            <p className="text-sm text-gray-500 mb-6">If you are running this locally, this error is expected unless you replace the **DUMMY_LOCAL_API_KEY** with a real Firebase API Key.</p>
-                            <button onClick={() => window.location.reload()} className="mt-4 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 flex items-center mx-auto">
-                                <RefreshCw className="w-4 h-4 mr-2" /> Try Reloading
-                            </button>
-                        </div>
-                    );
+                // Check 2: Waiting for Auth/DB readiness
+                if (route === 'loading' || !db || !auth || !isAuthReady) {
+                    return <LoadingIndicator />;
                 }
 
                 switch (route) {
                     case 'login':
-                        // If user is ready but still 'unknown' role (meaning anonymous sign-in worked but no profile found)
                         return <AuthScreen setUser={setUser} db={db} auth={auth} setRoute={setRoute} />;
                     case 'dashboard':
-                        // Check if user object is fully populated before rendering dashboard
+                        // Ensure user state is complete before dashboard access
                         if (user?.isReady) {
                             return <Dashboard user={user} games={games} onPlayGame={handlePlayGame} onLogout={handleLogout} onNavigate={setRoute} db={db} userEncodedPassword={user.encodedPassword} />;
                         }
-                        return <LoadingIndicator />; // Should theoretically not happen if isAuthReady is true
+                        return <LoadingIndicator />;
                     case 'encoder':
                         return <EncoderDecoder setRoute={setRoute} />;
                     case 'playGame':
