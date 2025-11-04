@@ -1,992 +1,621 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arcade Host Platform</title>
-    <!-- Load Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load React, ReactDOM, and Babel -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Configure Font for Tailwind -->
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-        }
-        .animate-spin {
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        /* Custom styles for the game iframe to take up max space */
-        .game-iframe {
-            width: 100%;
-            height: calc(100vh - 12rem); /* Adjusted height to fit within the screen */
-            border: 4px solid #4f46e5;
-            border-radius: 12px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            background-color: white;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Host Platform</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load React, ReactDOM, and Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Configure Font for Tailwind -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        /* Custom styles for the game iframe to take up max space */
+        .game-iframe {
+            width: 100%;
+            height: calc(100vh - 12rem); /* Adjusted height to fit within the screen */
+            border: 4px solid #4f46e5;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            background-color: white;<script>
+  const firebaseConfig = {
+  apiKey: "AIzaSyCrVhsbABjUW5pRGt4Tf0-T9KlHGjux-z4",
+  authDomain: "wiiizzz786games.firebaseapp.com",
+  projectId: "wiiizzz786games",
+  storageBucket: "wiiizzz786games.firebasestorage.app",
+  messagingSenderId: "719578059323",
+  appId: "1:719578059323:web:cc822225b1fadf303d021e",
+  measurementId: "G-8FVD56NSCT"
+};
+
+  // Logical app id used by this page (used for Firestore paths). Choose any short id.
+  window.__app_id = "my-arcade-app";
+</script>
+        }
+    </style>
 </head>
 <body>
-    <div id="root"></div>
-
-    <!-- Load Lucide Icons UMD Bundle (This defines the global 'lucide' variable) -->
-    <script src="https://unpkg.com/lucide-react@latest/umd/lucide-react.js"></script>
-
-    <!-- Firebase Imports and Setup -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Expose Firebase functions globally for the Babel script
-        window.firebase = {
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, 
-            getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc, 
-        };
-    </script>
-
-    <!-- The React App Logic (Transpiled by Babel) -->
-    <script type="text/babel">
-        
-        // --- 1. DUMMY CONFIGURATION FOR LOCAL TESTING ---
-        const DUMMY_FIREBASE_CONFIG = {
-            apiKey: "DUMMY_LOCAL_API_KEY", 
-            authDomain: "dummy-auth.firebaseapp.com",
-            projectId: "dummy-project-12345", 
-            appId: "1:123:web:dummy",
-            storageBucket: "dummy-bucket.appspot.com" 
-        };
-        const DUMMY_APP_ID = 'local-dev-arcade-app';
-        
-        // --- 2. ROBUST CHECK FOR ENVIRONMENT VARIABLES ---
-        
-        const IS_CANVAS_ENV = typeof __app_id !== 'undefined';
-        const appId = IS_CANVAS_ENV ? __app_id : DUMMY_APP_ID;
-
-        let firebaseConfig;
-        let isConfigValid = false;
-
-        if (IS_CANVAS_ENV && typeof __firebase_config !== 'undefined' && __firebase_config) {
-            try {
-                firebaseConfig = JSON.parse(__firebase_config);
-                // Simple validation check: ensure essential keys exist
-                if (firebaseConfig.apiKey && firebaseConfig.projectId) {
-                    isConfigValid = true;
-                } else {
-                    console.error("Platform config is missing essential keys. Falling back to dummy.");
-                }
-            } catch (e) {
-                console.error("Failed to parse __firebase_config, falling back to dummy config.", e);
-            }
-        }
-        
-        if (!isConfigValid) {
-            firebaseConfig = DUMMY_FIREBASE_CONFIG;
-        }
-
-        const initialAuthToken = IS_CANVAS_ENV && typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        // Hardcoded admin credentials
-        const HARDCODED_ADMIN_USERNAME = "hkh";
-        const HARDCODED_ADMIN_PASSWORD = "player9563";
-
-        // Destructure necessary React hooks and Firebase functions from globals
-        const { useState, useEffect, useMemo } = React;
-        const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc } = window.firebase;
-        
-        // --- Defensive Icon Loading Utility ---
-        const getIcon = (name) => {
-            if (window.lucide && window.lucide[name]) {
-                return window.lucide[name];
-            }
-            return ({ className = '' }) => <span className={`text-red-500 ${className}`}>[ICON]</span>;
-        };
-
-        const RefreshCw = getIcon('RefreshCw');
-        const LogIn = getIcon('LogIn');
-        const UserPlus = getIcon('UserPlus');
-        const Gamepad = getIcon('Gamepad');
-        const Lock = getIcon('Lock');
-        const CheckCircle = getIcon('CheckCircle');
-        const UploadCloud = getIcon('UploadCloud');
-        const Code = getIcon('Code');
-        const Settings = getIcon('Settings');
-        const ArrowLeft = getIcon('ArrowLeft');
-        const AlertTriangle = getIcon('AlertTriangle');
-        const Key = getIcon('Key');
-
-
-        // --- Utility Functions for Base64 Encoding/Decoding (Used for "Hashed" Password Storage) ---
-        const encodeBase64 = (str) => btoa(unescape(encodeURIComponent(str)));
-        const decodeBase64 = (str) => {
-            try {
-                return decodeURIComponent(escape(atob(str)));
-            } catch (e) {
-                return `Error: Decoding failed. Check if the string is valid Base64: ${e.message}`;
-            }
-        };
-
-        // --- Utility Components ---
-        const LoadingIndicator = () => (
-            <div className="flex items-center justify-center p-8">
-                <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-                <span className="ml-3 text-lg font-medium text-gray-700">Initializing...</span>
-            </div>
-        );
-
-        // Unified Authentication Screen (handles both Login and Register)
-        const AuthScreen = ({ setUser, db, auth, setRoute }) => { 
-            const [isLogin, setIsLogin] = useState(true);
-            const [username, setUsername] = useState('');
-            const [password, setPassword] = useState('');
-            const [error, setError] = useState(null);
-            const [success, setSuccess] = useState(null);
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setError(null);
-                setSuccess(null);
-
-                if (username.length < 3 || password.length < 6) {
-                    setError("Username must be 3+ characters and Password 6+ characters.");
-                    return;
-                }
-
-                // Get the current authenticated user (should be the anonymous user set up in the main effect)
-                let currentUser = auth.currentUser;
-                
-                // If for some reason auth failed completely, handle gracefully
-                if (!currentUser) {
-                    setError("Authentication services failed to initialize. Cannot proceed with login/registration.");
-                    return;
-                }
-
-                try {
-                    // Encode the input password for verification/storage
-                    const encodedPassword = encodeBase64(password);
-                    const usersCollectionRef = collection(db, `/artifacts/${appId}/public/data/users`);
-                    
-                    // --- HARDCODED ADMIN CHECK (Only on Login Path) ---
-                    if (isLogin && username === HARDCODED_ADMIN_USERNAME && encodedPassword === encodeBase64(HARDCODED_ADMIN_PASSWORD)) {
-                        
-                        const adminUserDocRef = doc(db, `/artifacts/${appId}/public/data/users`, currentUser.uid);
-                        await setDoc(adminUserDocRef, {
-                            username: HARDCODED_ADMIN_USERNAME,
-                            role: 'admin',
-                            lastActivity: serverTimestamp(),
-                            userId: currentUser.uid,
-                            encodedPassword: encodedPassword,
-                        }, { merge: true });
-
-                        setSuccess(`Welcome, Admin ${HARDCODED_ADMIN_USERNAME}! Redirecting...`);
-                        setTimeout(() => {
-                            setUser({ uid: currentUser.uid, username: HARDCODED_ADMIN_USERNAME, role: 'admin', isReady: true, encodedPassword });
-                            setRoute('dashboard');
-                        }, 500);
-                        return;
-                    }
-
-
-                    // --- REGULAR USER CHECK (For both Login and Register) ---
-                    const q = query(usersCollectionRef, where("username", "==", username));
-                    const snapshot = await getDocs(q);
-                    const userExists = !snapshot.empty;
-                    
-                    if (isLogin) {
-                        // --- REGULAR LOGIN PATH ---
-                        if (!userExists) {
-                            setError("Login failed: Account not found. Please register first.");
-                            return;
-                        }
-
-                        const userDoc = snapshot.docs[0];
-                        const existingUser = userDoc.data();
-
-                        // 2. Verify Password against stored encoded value
-                        if (existingUser.encodedPassword !== encodedPassword) {
-                            setError("Login failed: Incorrect password.");
-                            return;
-                        }
-
-                        // If successful, update the user profile document using the CURRENT anonymous UID.
-                        const userDocRef = doc(db, `/artifacts/${appId}/public/data/users`, currentUser.uid);
-                        await setDoc(userDocRef, {
-                            username: existingUser.username,
-                            role: existingUser.role || 'player', 
-                            lastActivity: serverTimestamp(),
-                            userId: currentUser.uid,
-                            encodedPassword: existingUser.encodedPassword, 
-                        }, { merge: true });
-
-                        setSuccess(`Welcome back, ${existingUser.username}! Redirecting...`);
-                        setTimeout(() => {
-                            setUser({ uid: currentUser.uid, username: existingUser.username, role: existingUser.role || 'player', isReady: true, encodedPassword: existingUser.encodedPassword });
-                            setRoute('dashboard');
-                        }, 500);
-
-                    } else {
-                        // --- REGISTRATION PATH ---
-                        if (userExists) {
-                            setError("Registration failed: Username already taken.");
-                            return;
-                        }
-
-                        // Registration successful: Create a new user profile document using the CURRENT anonymous UID.
-                        const userDocRef = doc(db, `/artifacts/${appId}/public/data/users`, currentUser.uid);
-                        await setDoc(userDocRef, {
-                            username: username,
-                            role: 'player', // Default role is 'player'
-                            lastActivity: serverTimestamp(),
-                            userId: currentUser.uid,
-                            encodedPassword: encodedPassword, // Store the encoded password
-                        }, { merge: true });
-
-                        setSuccess(`Registration successful for user: ${username}!`);
-                        setTimeout(() => {
-                            setUser({ uid: currentUser.uid, username, role: 'player', isReady: true, encodedPassword });
-                            setRoute('dashboard');
-                        }, 500);
-                    }
-
-                } catch (err) {
-                    console.error("Auth/DB Error during Login/Registration:", err);
-                    setError(`Operation failed: ${err.message}. Please try again.`);
-                }
-            };
-
-            return (
-                <div className="w-full max-w-md p-8 bg-white shadow-2xl rounded-xl">
-                    <h2 className="text-3xl font-extrabold text-gray-900 mb-6 text-center">
-                        <span className="flex items-center justify-center">
-                            {isLogin ? <LogIn className="w-7 h-7 mr-3 text-indigo-500" /> : <UserPlus className="w-7 h-7 mr-3 text-indigo-500" />}
-                            {isLogin ? 'Sign In' : 'Register Account'}
-                        </span>
-                    </h2>
-                    <div className="text-center text-sm text-gray-600 mb-6 p-3 bg-red-50 rounded-lg border border-red-200">
-                        <AlertTriangle className="inline w-4 h-4 mr-2 text-red-600" />
-                        **Security Notice:** Passwords are Base64 encoded for storage, but this app runs entirely on the frontend, meaning this is not a secure, production-ready login system.
-                    </div>
-                    {error && (
-                        <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 font-medium text-sm border border-red-300">
-                            Error: {error}
-                        </div>
-                    )}
-                    {success && (
-                        <div className="bg-green-100 text-green-700 p-3 rounded-lg mb-4 font-medium text-sm border border-green-300">
-                            <CheckCircle className="inline w-4 h-4 mr-2" />
-                            {success}
-                        </div>
-                    )}
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                            <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out shadow-sm"
-                                placeholder="Enter your username"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out shadow-sm"
-                                placeholder="••••••••"
-                                required
-                            />
-                        </div>
-                        <button
-                            type="submit"
-                            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-200 ease-in-out font-semibold shadow-md active:shadow-none"
-                        >
-                            {isLogin ? 'Log In' : 'Register'}
-                        </button>
-                    </form>
-                    <div className="mt-4 text-center text-sm text-gray-500">
-                        <button
-                            onClick={() => { setIsLogin(!isLogin); setError(null); setSuccess(null); }}
-                            className="text-indigo-600 hover:text-indigo-800 font-medium"
-                        >
-                            {isLogin ? 'Need an account? Register here.' : 'Already have an account? Log In.'}
-                        </button>
-                    </div>
-                </div>
-            );
-        };
-
-        const PasswordChangeForm = ({ user, db, userEncodedPassword }) => {
-            const [oldPassword, setOldPassword] = useState('');
-            const [newPassword, setNewPassword] = useState('');
-            const [confirmPassword, setConfirmPassword] = useState('');
-            const [message, setMessage] = useState('');
-            const [isExpanded, setIsExpanded] = useState(false);
-
-            const handlePasswordChange = async (e) => {
-                e.preventDefault();
-                setMessage('');
-
-                if (user.role === 'admin') {
-                    setMessage('Error: Admin password changes must be handled by updating the hardcoded credentials directly in the source code.');
-                    return;
-                }
-                
-                if (newPassword.length < 6) {
-                    setMessage('Error: New password must be at least 6 characters long.');
-                    return;
-                }
-                if (newPassword !== confirmPassword) {
-                    setMessage('Error: New password and confirmation do not match.');
-                    return;
-                }
-
-                const encodedOldPassword = encodeBase64(oldPassword);
-                // Note: userEncodedPassword will be empty for Local Guest/Failed Auth users, 
-                // but since they don't have a real password to check against anyway, we allow it.
-                if (userEncodedPassword && encodedOldPassword !== userEncodedPassword) {
-                    setMessage('Error: Current password is incorrect.');
-                    return;
-                }
-
-                try {
-                    const userDocRef = doc(db, `/artifacts/${appId}/public/data/users`, user.uid);
-                    // Only update the encoded password field
-                    await updateDoc(userDocRef, {
-                        encodedPassword: encodeBase64(newPassword),
-                        lastPasswordChange: serverTimestamp(),
-                    });
-
-                    setMessage('Success: Your password has been changed successfully!');
-                    setOldPassword('');
-                    setNewPassword('');
-                    setConfirmPassword('');
-                    setIsExpanded(false); // Collapse on success
-
-                } catch (error) {
-                    console.error("Password update error:", error);
-                    setMessage(`Failed to update password: ${error.message}`);
-                }
-            };
-
-            return (
-                <div className="mt-6">
-                    <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="w-full flex justify-between items-center px-4 py-3 bg-indigo-100 text-indigo-700 font-bold rounded-lg hover:bg-indigo-200 transition shadow-lg"
-                    >
-                        <span className="flex items-center">
-                            <Lock className="w-5 h-5 mr-3" />
-                            {user.role === 'admin' ? 'Admin Credential Info' : 'Change Your Password'}
-                        </span>
-                        <span>{isExpanded ? '−' : '+'}</span>
-                    </button>
-                    {isExpanded && (
-                        <div className="mt-3 p-4 bg-white border border-indigo-200 rounded-lg shadow-inner">
-                            <h3 className="text-lg font-bold text-indigo-700 mb-3 flex items-center">
-                                <Key className="w-4 h-4 mr-2" />
-                                {user.role === 'admin' ? 'Admin Access Details' : 'Player Security Settings'}
-                            </h3>
-                            {user.role === 'admin' ? (
-                                <div className="text-sm text-gray-700 space-y-2">
-                                    <p className="p-2 bg-yellow-50 rounded-md border border-yellow-200">
-                                        Admin credentials are hardcoded in `index.html` for platform management. They cannot be changed via the UI.
-                                    </p>
-                                    <p className="font-semibold">Username: <span className="text-indigo-600">{HARDCODED_ADMIN_USERNAME}</span></p>
-                                </div>
-                            ) : (
-                                <form onSubmit={handlePasswordChange} className="space-y-3">
-                                    {message && (
-                                        <div className={`p-3 rounded-lg font-medium text-sm border ${message.startsWith('Error') ? 'bg-red-100 text-red-700 border-red-300' : 'bg-green-100 text-green-700 border-green-300'}`}>
-                                            {message}
-                                        </div>
-                                    )}
-                                    {user.username === 'LocalGuest' ? (
-                                        <div className="p-3 bg-yellow-100 text-yellow-700 rounded-lg font-medium text-sm border border-yellow-300">
-                                            <AlertTriangle className="inline w-4 h-4 mr-2" />
-                                            You are signed in as a **Local Guest**. Your credentials are not stored and cannot be changed.
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-                                                <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">New Password (6+ characters)</label>
-                                                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-                                                <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" required />
-                                            </div>
-                                            <button type="submit" className="w-full bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 font-medium transition duration-200 shadow-md">
-                                                Update Password
-                                            </button>
-                                        </>
-                                    )}
-                                </form>
-                            )}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        const EncoderDecoder = ({ setRoute }) => {
-            const [input, setInput] = useState('');
-            const [output, setOutput] = useState('');
-            const [mode, setMode] = useState('encode'); // 'encode' or 'decode'
-
-            const handleProcess = () => {
-                if (!input) {
-                    setOutput('Please enter content to process.');
-                    return;
-                }
-
-                if (mode === 'encode') {
-                    const encoded = encodeBase64(input);
-                    setOutput(encoded);
-                } else {
-                    const decoded = decodeBase64(input);
-                    setOutput(decoded);
-                }
-            };
-
-            const handleCopy = () => {
-                if (output) {
-                    const tempInput = document.createElement('textarea');
-                    tempInput.value = output;
-                    document.body.appendChild(tempInput);
-                    tempInput.select();
-                    // Use document.execCommand('copy') as navigator.clipboard might not work in iframe environments
-                    document.execCommand('copy'); 
-                    // Use custom message box instead of alert()
-                    const messageBox = document.createElement('div');
-                    messageBox.textContent = "Copied to clipboard!";
-                    messageBox.className = "fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-500 text-white px-6 py-3 rounded-xl shadow-2xl z-50 text-lg font-bold transition-opacity duration-300";
-                    document.body.appendChild(messageBox);
-                    setTimeout(() => {
-                        messageBox.style.opacity = '0';
-                        setTimeout(() => document.body.removeChild(messageBox), 300);
-                    }, 1000);
-                    
-                    document.body.removeChild(tempInput);
-                }
-            };
-
-            return (
-                <div className="w-full max-w-4xl p-8 bg-white shadow-2xl rounded-xl">
-                    <h2 className="text-3xl font-extrabold text-gray-900 mb-6 flex items-center">
-                        <Code className="w-7 h-7 mr-3 text-purple-600" />
-                        Content Encoder & Decoder (Base64)
-                    </h2>
-                    <div className="flex justify-between items-center mb-6 border-b pb-4 border-gray-200">
-                        <button
-                            onClick={() => setRoute('dashboard')}
-                            className="flex items-center bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition duration-200 font-medium text-sm shadow-md active:shadow-none"
-                        >
-                            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
-                        </button>
-                        <div className="space-x-2 flex">
-                            <button
-                                onClick={() => { setMode('encode'); setInput(''); setOutput(''); }}
-                                className={`px-4 py-2 rounded-lg font-semibold transition ${mode === 'encode' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                            >
-                                <UploadCloud className="w-4 h-4 inline mr-2" /> Encode HTML to String
-                            </button>
-                            <button
-                                onClick={() => { setMode('decode'); setInput(''); setOutput(''); }}
-                                className={`px-4 py-2 rounded-lg font-semibold transition ${mode === 'decode' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                            >
-                                <RefreshCw className="w-4 h-4 inline mr-2" /> Decode String to HTML
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-lg font-semibold text-gray-800 mb-2">{mode === 'encode' ? 'Raw HTML/JS Input (Must be complete HTML)' : 'Base64 String Input'}</label>
-                            <textarea
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                rows={8}
-                                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 shadow-inner resize-y"
-                                placeholder={mode === 'encode' ? "Paste your complete HTML game code here..." : "Paste the Base64 string here..."}
-                            />
-                        </div>
-                        <button
-                            onClick={handleProcess}
-                            className="w-full bg-purple-600 text-white py-3 px-6 rounded-lg font-bold text-lg hover:bg-purple-700 transition duration-200 shadow-xl active:shadow-none flex items-center justify-center"
-                        >
-                            {mode === 'encode' ? 'Encode to Base64 String' : 'Decode to HTML'}
-                        </button>
-                        <div>
-                            <label className="block text-lg font-semibold text-gray-800 mb-2">{mode === 'encode' ? 'Base64 Output (Copy this!)' : 'Decoded HTML/JS Output'}</label>
-                            <div className="relative">
-                                <textarea
-                                    value={output}
-                                    readOnly
-                                    rows={8}
-                                    className="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 shadow-inner resize-y"
-                                    placeholder="Output will appear here..."
-                                />
-                                {output && mode === 'encode' && (
-                                    <button
-                                        onClick={handleCopy}
-                                        className="absolute top-2 right-2 bg-indigo-500 text-white p-2 rounded-md hover:bg-indigo-600 transition text-sm font-medium flex items-center shadow-md"
-                                    >
-                                        <Code className="w-4 h-4 mr-1" /> Copy String
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        const AdminPanel = ({ user, db }) => {
-            const [title, setTitle] = useState('');
-            const [encodedGameString, setEncodedGameString] = useState('');
-            const [message, setMessage] = useState('');
-
-            const handleAddGame = async (e) => {
-                e.preventDefault();
-                setMessage('');
-
-                if (!title || !encodedGameString) {
-                    setMessage('Please provide both a title and the Base64-encoded game string.');
-                    return;
-                }
-                if (encodedGameString.length < 10) {
-                    setMessage('The input string is too short to be valid Base64 content.');
-                    return;
-                }
-
-                try {
-                    // Games are stored in a PUBLIC collection so all users can see them and play them.
-                    const gamesCollectionRef = collection(db, `/artifacts/${appId}/public/data/games`);
-                    await addDoc(gamesCollectionRef, {
-                        title: title,
-                        content: encodedGameString, // Save the encoded string
-                        addedBy: user.username,
-                        userId: user.uid,
-                        createdAt: serverTimestamp(),
-                    });
-
-                    setMessage('Game added successfully! It is now available to all players.');
-                    setTitle('');
-                    setEncodedGameString('');
-
-                } catch (error) {
-                    console.error("Error adding document: ", error);
-                    setMessage(`Failed to add game: ${error.message}`);
-                }
-            };
-
-            return (
-                <div className="w-full p-6 bg-white shadow-2xl rounded-xl border border-red-300">
-                    <h3 className="text-xl font-bold text-red-700 mb-4 flex items-center">
-                        <Settings className="w-5 h-5 mr-3" />
-                        Admin Panel: Add New Encoded Game
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
-                        You must use the **Content Encoder Utility** to convert your HTML game code into a Base64 string before publishing here.
-                    </p>
-
-                    <form onSubmit={handleAddGame} className="space-y-4">
-                        {message && (
-                            <div className={`p-3 rounded-lg font-medium text-sm border ${message.startsWith('Game added') ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}`}>
-                                {message}
-                            </div>
-                        )}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Game Title</label>
-                            <input
-                                type="text"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-sm"
-                                placeholder="e.g., Encoded Tetris"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Base64 Encoded Game String</label>
-                            <textarea
-                                value={encodedGameString}
-                                onChange={(e) => setEncodedGameString(e.target.value)}
-                                rows={6}
-                                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 shadow-inner resize-y"
-                                placeholder="Paste the Base64 encoded string here..."
-                                required
-                            />
-                        </div>
-                        <button
-                            type="submit"
-                            className="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 font-bold transition duration-200 shadow-md active:shadow-none"
-                        >
-                            Publish Encoded Game
-                        </button>
-                    </form>
-                </div>
-            );
-        };
-
-
-        const Dashboard = ({ user, games, onPlayGame, onLogout, onNavigate, db, userEncodedPassword }) => {
-            return (
-                <div className="w-full max-w-4xl p-8 bg-white shadow-2xl rounded-xl">
-                    <div className="flex justify-between items-start border-b pb-4 mb-4">
-                        <div>
-                            <h2 className="text-3xl font-extrabold text-gray-900 mb-1">
-                                Welcome, <span className="text-indigo-600">{user.username}</span>!
-                            </h2>
-                            <p className="text-sm text-gray-500 mt-1">
-                                {user.username === 'LocalGuest' ? (
-                                    <span className="font-semibold text-red-500 bg-red-100 p-1 rounded-md border border-red-300 inline-flex items-center">
-                                        <AlertTriangle className="w-4 h-4 mr-1"/> Authentication Failed. Using Local Guest Mode.
-                                    </span>
-                                ) : (
-                                    `Role: ${user.role.toUpperCase()}`
-                                )}
-                                
-                                | User ID: <span className="font-mono text-xs bg-gray-100 p-1 rounded">{user.uid}</span>
-                            </p>
-                        </div>
-                        {user.username !== 'LocalGuest' && (
-                            <button
-                                onClick={onLogout}
-                                className="flex items-center bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 font-medium transition duration-200 shadow-md active:shadow-none"
-                            >
-                                <LogIn className="w-4 h-4 mr-2" style={{ transform: 'scaleX(-1)' }} /> Log Out
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Password Change Form */}
-                    <PasswordChangeForm user={user} db={db} userEncodedPassword={userEncodedPassword} />
-
-                    {/* Admin Tools */}
-                    {user.role === 'admin' && (
-                        <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200 shadow-inner space-y-3">
-                            <h3 className="text-lg font-bold text-indigo-700 flex items-center">
-                                <Code className="w-5 h-5 mr-2" /> Admin Tools
-                            </h3>
-                            <button
-                                onClick={() => onNavigate('encoder')}
-                                className="flex items-center px-4 py-2 rounded-lg font-semibold text-white bg-purple-600 hover:bg-purple-700 transition shadow-lg"
-                            >
-                                <UploadCloud className="w-4 h-4 mr-2" /> Content Encoder Utility
-                            </button>
-                            <AdminPanel user={user} db={db} />
-                        </div>
-                    )}
-
-                    <h3 className="text-2xl font-bold text-gray-800 mt-8 mb-4 border-b pb-2 flex items-center">
-                        <Gamepad className="w-5 h-5 mr-3 text-indigo-600" />
-                        Available Games ({games.length})
-                    </h3>
-                    
-                    {games.length === 0 ? (
-                        <div className="p-6 text-center text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
-                            <AlertTriangle className="w-6 h-6 inline mr-2 text-yellow-500" />
-                            No games have been added yet. {user.role === 'admin' && "Please use the Admin Panel above to publish your first game."}
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {games.map(game => (
-                                <div key={game.id} className="bg-gray-50 p-5 rounded-xl shadow-lg border border-gray-200 flex flex-col justify-between hover:shadow-xl transition duration-300">
-                                    <div>
-                                        <h4 className="text-xl font-bold text-indigo-700 mb-1">{game.title}</h4>
-                                        <p className="text-xs text-gray-500 mb-3">Added by: {game.addedBy || 'N/A'}</p>
-                                    </div>
-                                    <button
-                                        onClick={() => onPlayGame(game)}
-                                        className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 font-medium transition duration-200 shadow-md active:shadow-none mt-4"
-                                    >
-                                        <Gamepad className="w-4 h-4 inline mr-2" /> Play Now
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
-        const GamePlayer = ({ game, onBack }) => {
-            // 1. Decode the Base64 string back into raw HTML content using useMemo for stability
-            const decodedHtml = useMemo(() => {
-                return decodeBase64(game.content);
-            }, [game.content]);
-
-            // 2. Check for decoding error
-            const isError = decodedHtml.startsWith("Error");
-
-            if (isError) {
-                return (
-                    <div className="w-full max-w-4xl p-8 bg-white shadow-2xl rounded-xl">
-                        <h2 className="text-3xl font-extrabold text-red-600 mb-6 flex items-center">
-                            <AlertTriangle className="w-7 h-7 mr-3" /> Content Error
-                        </h2>
-                        <div className="bg-red-100 text-red-700 p-4 rounded-lg font-mono text-sm overflow-auto max-h-60 border border-red-300 mb-4">
-                            {decodedHtml}
-                        </div>
-                        <button
-                            onClick={onBack}
-                            className="flex items-center bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 font-medium transition duration-200 shadow-md active:shadow-none"
-                        >
-                            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
-                        </button>
-                    </div>
-                );
-            }
-
-            // 3. Render the game using an iframe's srcDoc attribute
-            return (
-                <div className="w-full p-6 bg-white shadow-2xl rounded-xl">
-                    <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
-                        <h2 className="text-3xl font-extrabold text-indigo-600 flex items-center">
-                            <Gamepad className="w-7 h-7 mr-3" /> Playing: {game.title}
-                        </h2>
-                        <button
-                            onClick={onBack}
-                            className="flex items-center bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 font-medium transition duration-200 shadow-md active:shadow-none"
-                        >
-                            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
-                        </button>
-                    </div>
-
-                    <iframe 
-                        srcDoc={decodedHtml} 
-                        className="game-iframe" 
-                        title={game.title} 
-                        sandbox="allow-scripts allow-same-origin"
-                    />
-
-                    <p className="text-xs text-gray-500 mt-4 p-2 bg-gray-50 rounded">
-                        The content was successfully decoded and loaded via `srcDoc`. If the game doesn't run, ensure the original HTML was complete and valid.
-                    </p>
-                </div>
-            );
-        };
-        
-        // --- Component for Critical Initialization Failure ---
-        const CriticalInitError = () => (
-             <div className="w-full max-w-lg p-8 bg-white shadow-2xl rounded-xl text-center">
-                <h2 className="text-3xl font-extrabold text-red-600 mb-4 flex items-center justify-center">
-                    <AlertTriangle className="w-7 h-7 mr-3" /> Critical Setup Error
-                </h2>
-                <p className="text-gray-700 mb-4">
-                    The application failed to initialize **Firebase services**. The configuration provided by the host environment is invalid.
-                </p>
-                <div className="text-left p-4 bg-red-50 rounded-lg border border-red-200 mb-6 text-sm text-gray-600">
-                    <p className="font-semibold text-red-700">Debugging Details:</p>
-                    <ul className="list-disc list-inside mt-1 space-y-1">
-                        <li>The attempt to initialize Firebase failed at the root level.</li>
-                        <li>The app is blocked from running.</li>
-                    </ul>
-                </div>
-                <button onClick={() => window.location.reload()} className="mt-4 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 flex items-center mx-auto">
-                    <RefreshCw className="w-4 h-4 mr-2" /> Try Reloading
-                </button>
-            </div>
-        );
-
-
-        // --- Main Application Component ---
-        const App = () => {
-            const [db, setDb] = useState(null);
-            const [auth, setAuth] = useState(null);
-            const [user, setUser] = useState(null); // { uid, username, role, isReady, encodedPassword }
-            const [games, setGames] = useState([]);
-            const [route, setRoute] = useState('loading'); // 'loading', 'login', 'dashboard', 'encoder', 'playGame'
-            const [activeGame, setActiveGame] = useState(null);
-            const [isAuthReady, setIsAuthReady] = useState(false);
-            const [isInitFailed, setIsInitFailed] = useState(false); 
-
-            // 1. Initialize Firebase and Setup Auth Listener
-            useEffect(() => {
-                let authService, firestore;
-                let unsubscribeAuth = () => {};
-
-                try {
-                    // Try to initialize core services
-                    const app = initializeApp(firebaseConfig);
-                    firestore = getFirestore(app);
-                    authService = getAuth(app);
-                    setDb(firestore);
-                    setAuth(authService);
-                    
-                    // --- Start Auth Flow only if initialization succeeded ---
-                    unsubscribeAuth = onAuthStateChanged(authService, async (currentUser) => {
-                        if (currentUser) {
-                            const userDocRef = doc(firestore, `/artifacts/${appId}/public/data/users`, currentUser.uid);
-                            const docSnap = await getDoc(userDocRef);
-
-                            if (docSnap.exists()) {
-                                const userData = docSnap.data();
-                                setUser({ 
-                                    ...userData, 
-                                    uid: currentUser.uid, 
-                                    isReady: true, 
-                                    role: userData.role || 'player', 
-                                    encodedPassword: userData.encodedPassword 
-                                });
-                                setRoute('dashboard');
-                            } else {
-                                // Anonymous user exists but no profile found -> redirect to login/register screen
-                                setUser({ uid: currentUser.uid, isReady: true, role: 'unknown', encodedPassword: null });
-                                setRoute('login');
-                            }
-                        } else {
-                            // No authenticated user, attempt to sign in anonymously (or with custom token)
-                            try {
-                                if (initialAuthToken) {
-                                    await signInWithCustomToken(authService, initialAuthToken);
-                                } else {
-                                    await signInAnonymously(authService);
-                                }
-                            } catch (e) {
-                                console.error("Firebase initial sign-in error (Handling API Key failure):", e);
-                                
-                                // --- AUTH BYPASS: Force Local User State on Auth Error ---
-                                // If the sign-in fails (most likely due to 'auth/api-key-not-valid'), 
-                                // we force a local, non-Firebase-managed user to proceed.
-                                const localUid = 'local-player-' + Math.random().toString(36).substring(2, 9);
-                                setUser({ 
-                                    uid: localUid, 
-                                    username: 'LocalGuest', 
-                                    isReady: true, 
-                                    role: 'player', 
-                                    encodedPassword: '' 
-                                });
-                                setRoute('dashboard');
-                                // --- END BYPASS ---
-                            }
-                        }
-                        setIsAuthReady(true);
-                    });
-                } catch (e) {
-                    console.error("CRITICAL: Failed to initialize Firebase services. Configuration might be invalid.", e);
-                    setIsInitFailed(true); // Flag the critical failure
-                    setRoute('loading'); 
-                }
-                
-                return () => {
-                    if (typeof unsubscribeAuth === 'function') {
-                        unsubscribeAuth();
-                    }
-                };
-            }, []);
-
-            // 2. Load Games from Public Firestore Collection 
-            useEffect(() => {
-                // Only listen for games if DB is ready and we are authenticated enough to know the UID
-                if (db && auth && user?.uid && user?.isReady) { 
-                    const gamesCollectionRef = collection(db, `/artifacts/${appId}/public/data/games`);
-                    const q = query(gamesCollectionRef);
-
-                    const unsubscribeGames = onSnapshot(q, (snapshot) => {
-                        const fetchedGames = snapshot.docs.map(doc => ({ 
-                            id: doc.id, 
-                            ...doc.data() 
-                        }));
-                        setGames(fetchedGames);
-                    }, (error) => {
-                        console.error("Error fetching games:", error);
-                    });
-
-                    return () => unsubscribeGames();
-                }
-            }, [db, auth, user?.uid, user?.isReady]);
-
-            // Handlers
-            const handlePlayGame = (game) => {
-                setActiveGame(game);
-                setRoute('playGame');
-            };
-
-            const handleBackToDashboard = () => {
-                setActiveGame(null);
-                setRoute('dashboard');
-            };
-
-            const handleLogout = async () => {
-                if (auth) {
-                    // For the LocalGuest, we just reload/reset state
-                    if (user.username === 'LocalGuest') {
-                        window.location.reload();
-                        return;
-                    }
-                    await signOut(auth);
-                }
-                // Force reload to get a new anonymous user/reset state
-                window.location.reload();
-            };
-
-            const renderContent = () => {
-                // Check 1: Critical Initialization Failure
-                if (isInitFailed) {
-                    return <CriticalInitError />;
-                }
-                
-                // Check 2: Waiting for Auth/DB readiness
-                if (route === 'loading' || !db || !auth || !isAuthReady) {
-                    return <LoadingIndicator />;
-                }
-
-                switch (route) {
-                    case 'login':
-                        // If we are LocalGuest, skip login screen and proceed to dashboard immediately.
-                        if (user?.username === 'LocalGuest') {
-                            setRoute('dashboard');
-                            return <LoadingIndicator />;
-                        }
-                        return <AuthScreen setUser={setUser} db={db} auth={auth} setRoute={setRoute} />;
-                    case 'dashboard':
-                        // Ensure user state is complete before dashboard access
-                        if (user?.isReady) {
-                            return <Dashboard user={user} games={games} onPlayGame={handlePlayGame} onLogout={handleLogout} onNavigate={setRoute} db={db} userEncodedPassword={user.encodedPassword} />;
-                        }
-                        return <LoadingIndicator />;
-                    case 'encoder':
-                        return <EncoderDecoder setRoute={setRoute} />;
-                    case 'playGame':
-                        return <GamePlayer game={activeGame} onBack={handleBackToDashboard} />;
-                    default:
-                        return <LoadingIndicator />;
-                }
-            };
-
-            return (
-                <div className="min-h-screen flex flex-col items-center py-10 px-4 bg-gray-100">
-                    <header className="mb-8 text-center">
-                        <h1 className="text-5xl font-extrabold text-gray-900 flex items-center justify-center">
-                            <Gamepad className="w-10 h-10 mr-4 text-indigo-600" /> Arcade Host
-                        </h1>
-                        <p className="text-lg text-gray-600 mt-2">The collaborative platform for shared Base64-encoded games.</p>
-                    </header>
-                    {renderContent()}
-                </div>
-            );
-        };
-
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-    </script>
-</body>
-</html>
+	<div id="root">
+		<!-- Visible loading placeholder to avoid white screen while JS boots -->
+		<div id="app-loading" style="height:100vh;display:flex;align-items:center;justify-content:center;background:#f3f4f6;font-family:Inter, system-ui, -apple-system;">
+			<div style="text-align:center;color:#374151">
+				<div style="font-size:24px;font-weight:600;margin-bottom:8px">Loading app…</div>
+				<div style="color:#6b7280">If this message persists, open DevTools → Console to see errors.</div>
+			</div>
+		</div>
+	</div>
+
+    <!-- Load Lucide Icons UMD Bundle (This defines the global 'lucide' variable) -->
+    <script src="https://unpkg.com/lucide-react@latest/umd/lucide-react.js"></script>
+
+    <!-- Firebase Imports and Setup -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Expose Firebase functions globally for the Babel script
+        window.firebase = {
+            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, 
+            getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc, 
+        };
+    </script>
+	<script>
+		// User-provided Firebase Web config — injected so the page initializes Firebase automatically
+		window.__firebase_config = {
+			apiKey: "AIzaSyCrVhsbABjUW5pRGt4Tf0-T9KlHGjux-z4",
+			authDomain: "wiiizzz786games.firebaseapp.com",
+			projectId: "wiiizzz786games",
+			storageBucket: "wiiizzz786games.firebasestorage.app",
+			messagingSenderId: "719578059323",
+			appId: "1:719578059323:web:cc822225b1fadf303d021e",
+			measurementId: "G-8FVD56NSCT"
+		};
+
+		const RequestGame = ({ onBack, user }) => {
+			const [title, setTitle] = useState('');
+			const [details, setDetails] = useState('');
+			const [status, setStatus] = useState('');
+			const handleSubmit = async (e) => {
+				e.preventDefault(); setStatus('');
+				if (!title) { setStatus('Provide a title'); return; }
+				const payload = { title, details, requestedBy: user ? user.username || user.uid : 'anon', requesterId: user?user.uid:null };
+				const res = await addRequestDoc(payload);
+				if (res.ok) { setStatus('Request submitted'); setTitle(''); setDetails(''); } else setStatus('Failed: '+(res.error||'unknown'));
+			};
+
+			return (
+				<div className="p-6 max-w-2xl mx-auto">
+					<div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Request a Game</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
+					<form onSubmit={handleSubmit} className="space-y-3 bg-white p-4 rounded shadow">
+						{status && <div className="p-2 bg-yellow-50">{status}</div>}
+						<input className="w-full p-3 border" placeholder="Game title" value={title} onChange={e=>setTitle(e.target.value)} />
+						<textarea rows={6} className="w-full p-3 border" placeholder="Details / why you want it" value={details} onChange={e=>setDetails(e.target.value)} />
+						<button className="px-4 py-2 bg-indigo-600 text-white rounded" type="submit">Send Request</button>
+					</form>
+				</div>
+			);
+		};
+
+		const AdminRequests = ({ onBack }) => {
+			const [requests, setRequests] = useState([]);
+			useEffect(()=>{ let mounted=true; (async ()=>{
+				if (useFirebase && fb.getDocs) {
+					const col = fb.collection(fbDb, `/artifacts/${appId}/public/data/requests`);
+					const snap = await fb.getDocs(col);
+					const list=[]; snap.forEach(d=>list.push({id:d.id, ...d.data()})); if(mounted) setRequests(list);
+				} else {
+					const key = `mock_requests_${appId}`; const list = JSON.parse(localStorage.getItem(key)||'[]'); if(mounted) setRequests(list.map((r,i)=>({id:'local-'+i, ...r}))); 
+				}
+			})(); return ()=>{mounted=false}; },[]);
+
+			const markResolved = async (id)=>{
+				if (!useFirebase) {
+					const key = `mock_requests_${appId}`; const list = JSON.parse(localStorage.getItem(key)||'[]'); const updated = list.map((r,i)=> i===parseInt(id.replace('local-','')) ? Object.assign({}, r, { status:'resolved' }) : r); localStorage.setItem(key, JSON.stringify(updated)); setRequests(updated); return;
+				}
+				try {
+					const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/requests`, id);
+					await fb.updateDoc(ref, { status: 'resolved' });
+					setRequests(requests.map(r=> r.id===id ? Object.assign({}, r, { status:'resolved' }) : r));
+				} catch(e){ console.error(e); }
+			};
+
+			return (
+				<div className="p-6 max-w-4xl mx-auto">
+					<div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Game Requests</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
+					{requests.length===0 && <div className="p-4 bg-yellow-50">No requests</div>}
+					{requests.map(r=> (
+						<div key={r.id} className="p-3 bg-white rounded shadow flex justify-between items-center mb-2">
+							<div>
+								<div className="font-semibold">{r.title}</div>
+								<div className="text-sm text-gray-600">by {r.requestedBy || r.requesterId || 'unknown'}</div>
+								<div className="text-sm text-gray-700">{r.details}</div>
+							</div>
+							<div>
+								<div className="mb-2">{r.status || 'open'}</div>
+								<button className="px-3 py-1 bg-green-600 text-white rounded mr-2">Add Game</button>
+								<button className="px-3 py-1 bg-gray-200 rounded" onClick={()=>markResolved(r.id)}>Resolve</button>
+							</div>
+						</div>
+					))}
+				</div>
+			);
+		};
+		// short id used by this app for Firestore paths
+		window.__app_id = 'wiiizzz786games';
+	</script>
+
+	<!-- Early Firebase initializer: if you added window.__firebase_config, initialize the app now and expose app/auth/db on window -->
+	<script>
+		(function(){
+			try {
+				const cfg = window.__firebase_config || null;
+				if (!cfg) { console.log('No window.__firebase_config found; skipping early firebase initialize.'); return; }
+				if (!window.firebase || !window.firebase.initializeApp) { console.warn('Firebase SDK not available yet; ensure the module script loaded.'); return; }
+				// initialize app and attach to window so the app code can reuse the same instance
+				try {
+					const app = window.firebase.initializeApp(cfg);
+					window.__firebase_app = app;
+					window.__firebase_auth = window.firebase.getAuth ? window.firebase.getAuth(app) : null;
+					window.__firebase_db = window.firebase.getFirestore ? window.firebase.getFirestore(app) : null;
+					window.__fb_ready = true;
+					console.log('Firebase initialized (early):', !!window.__firebase_app);
+				} catch (e) {
+					console.warn('Early firebase initializeApp failed:', e && e.message ? e.message : e);
+				}
+			} catch (err) { console.error('Early firebase init wrapper error', err); }
+		})();
+	</script>
+
+	<!-- The React App Logic (Transpiled by Babel) -->
+	<script type="text/babel">
+		// Defensive app: supports real Firebase when a config is provided via window.__firebase_config
+		const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+		let firebaseConfig = {};
+		try { if (typeof window.__firebase_config !== 'undefined') firebaseConfig = typeof window.__firebase_config === 'string' ? JSON.parse(window.__firebase_config) : window.__firebase_config; } catch(e) { firebaseConfig = {}; }
+
+		const { useState, useEffect } = React;
+
+		// Install a global error hook early so runtime errors render a message instead of a white screen
+		window.addEventListener('error', (ev) => {
+			try {
+				const root = document.getElementById('root');
+				if (root) root.innerHTML = `<div style="padding:24px;font-family:Inter,system-ui;color:#b91c1c;background:#fff1f2;">\n<h2 style=\"margin:0 0 8px;\">App error</h2>\n<pre style=\"white-space:pre-wrap;word-break:break-word;\">${(ev && ev.error && ev.error.stack) || ev.message || 'Unknown error'}</pre>\n</div>`;
+			} catch(e) { console.error('render error', e); }
+		});
+		window.addEventListener('unhandledrejection', (ev) => {
+			try {
+				const root = document.getElementById('root');
+				if (root) root.innerHTML = `<div style="padding:24px;font-family:Inter,system-ui;color:#b91c1c;background:#fff1f2;">\n<h2 style=\"margin:0 0 8px;\">Unhandled promise rejection</h2>\n<pre style=\"white-space:pre-wrap;word-break:break-word;\">${(ev && ev.reason && (ev.reason.stack||ev.reason.message)) || JSON.stringify(ev) }</pre>\n</div>`;
+			} catch(e) { console.error('render rejection error', e); }
+		});
+
+		// Icon helper
+		const getIcon = (name) => {
+			if (window.lucide && window.lucide[name]) return window.lucide[name];
+			return ({ className = '', ...props }) => React.createElement('span', { className: `inline-block ${className}`, ...props }, '[icon]');
+		};
+
+		const RefreshCw = getIcon('RefreshCw');
+		const LogIn = getIcon('LogIn');
+		const UserPlus = getIcon('UserPlus');
+		const Lock = getIcon('Lock');
+		const CheckCircle = getIcon('CheckCircle');
+		const UploadCloud = getIcon('UploadCloud');
+		const Code = getIcon('Code');
+		const Settings = getIcon('Settings');
+		const ArrowLeft = getIcon('ArrowLeft');
+		const AlertTriangle = getIcon('AlertTriangle');
+		const Key = getIcon('Key');
+
+		// Base64 helpers
+		const encodeBase64 = (s) => { try { return btoa(unescape(encodeURIComponent(s))); } catch(e){ return ''; } };
+		const decodeBase64 = (s) => { try { return decodeURIComponent(escape(atob(s))); } catch(e){ return 'Invalid base64'; } };
+
+		// Firebase wrappers (use real Firebase if available, otherwise mocks)
+		const fb = window.firebase || null;
+		let useFirebase = false;
+		let fbAuth = null, fbDb = null;
+
+		if (fb && Object.keys(firebaseConfig).length) {
+			try {
+				const app = fb.initializeApp(firebaseConfig);
+				fbAuth = fb.getAuth ? fb.getAuth(app) : null;
+				fbDb = fb.getFirestore ? fb.getFirestore(app) : null;
+				useFirebase = !!(fbAuth && fbDb);
+				console.log('Firebase initialized');
+			} catch (err) {
+				console.warn('Firebase init failed:', err.message);
+			}
+		}
+
+		// Helper: sign in anonymously (returns current user)
+		const ensureAuth = async () => {
+			if (useFirebase && fb && fb.signInAnonymously) {
+				try {
+					await fb.signInAnonymously(fbAuth);
+					return fbAuth.currentUser;
+				} catch (e) {
+					console.warn('Anon sign-in failed:', e.message);
+				}
+			}
+			return { uid: 'local-' + Math.random().toString(36).slice(2,8) };
+		};
+
+		const findUserByUsername = async (username) => {
+			if (!useFirebase) return { found: false };
+			try {
+				const usersRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/users`);
+				const q = fb.query(usersRef, fb.where('username', '==', username));
+				const snap = await fb.getDocs(q);
+				if (!snap.empty) return { found: true, doc: snap.docs[0] };
+			} catch (e) { console.warn('findUser error', e.message); }
+			return { found: false };
+		};
+
+		const createOrUpdateUser = async (uid, payload) => {
+			if (!useFirebase) return true;
+			try {
+				const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/users`, uid);
+				await fb.setDoc(ref, payload, { merge: true });
+				return true;
+			} catch (e) { console.error('set user error', e); return false; }
+		};
+
+		const addGameDoc = async (payload) => {
+			// If Firebase isn't configured, persist to localStorage as a mock so the UI works locally
+			if (!useFirebase) {
+				try {
+					const key = `mock_games_${appId}`;
+					const list = JSON.parse(localStorage.getItem(key) || '[]');
+					list.push(Object.assign({}, payload, { _localSavedAt: Date.now() }));
+					localStorage.setItem(key, JSON.stringify(list));
+					console.warn('addGameDoc: saved to localStorage mock:', payload);
+					return { ok: true, mock: true };
+				} catch (e) {
+					return { ok: false, error: 'No firebase and localStorage failed: ' + (e && e.message) };
+				}
+			}
+			try {
+				const gamesRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/games`);
+				await fb.addDoc(gamesRef, payload);
+				return { ok: true };
+			} catch (e) { return { ok: false, error: e.message }; }
+		};
+
+		const addRequestDoc = async (payload) => {
+			if (!useFirebase) {
+				try {
+					const key = `mock_requests_${appId}`;
+					const list = JSON.parse(localStorage.getItem(key) || '[]');
+					list.push(Object.assign({}, payload, { _localSavedAt: Date.now() }));
+					localStorage.setItem(key, JSON.stringify(list));
+					console.warn('addRequestDoc: saved to localStorage mock:', payload);
+					return { ok: true, mock: true };
+				} catch (e) { return { ok: false, error: e.message }; }
+			}
+			try {
+				const reqRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/requests`);
+				await fb.addDoc(reqRef, Object.assign({}, payload, { createdAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), status: 'open' }));
+				return { ok: true };
+			} catch (e) { return { ok: false, error: e.message }; }
+		};
+
+		// Save/load progress for a given gameId tied to a user
+		const saveProgress = async (gameId, uid, progress) => {
+			if (!gameId || !uid) return { ok: false, error: 'missing gameId or uid' };
+			const payload = { gameId, userId: uid, progress, updatedAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now() };
+			if (!useFirebase) {
+				try {
+					const key = `progress_${appId}_${uid}_${gameId}`;
+					localStorage.setItem(key, JSON.stringify(payload));
+					return { ok: true, mock: true };
+				} catch (e) { return { ok: false, error: e.message }; }
+			}
+			try {
+				const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/progress`, `${uid}_${gameId}`);
+				await fb.setDoc(ref, payload, { merge: true });
+				return { ok: true };
+			} catch (e) { return { ok: false, error: e.message }; }
+		};
+
+		const loadProgress = async (gameId, uid) => {
+			if (!gameId || !uid) return null;
+			if (!useFirebase) {
+				const key = `progress_${appId}_${uid}_${gameId}`;
+				try { return JSON.parse(localStorage.getItem(key)); } catch(e){ return null; }
+			}
+			try {
+				const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/progress`, `${uid}_${gameId}`);
+				const snap = await fb.getDoc(ref);
+				if (snap && snap.exists) return snap.data();
+				return null;
+			} catch(e){ console.error('loadProgress', e); return null; }
+		};
+
+		// AuthScreen using Firebase when available
+		const AuthScreen = ({ onAuth }) => {
+			const [isLogin, setIsLogin] = useState(true);
+			const [username, setUsername] = useState('');
+			const [password, setPassword] = useState('');
+			const [status, setStatus] = useState('');
+
+			const HARDCODED_ADMIN_USERNAME = 'hkh';
+			const HARDCODED_ADMIN_PASSWORD = 'player9563';
+
+			const handleSubmit = async (e) => {
+				e.preventDefault();
+				setStatus('');
+				if (username.length < 3 || password.length < 4) { setStatus('Username 3+ and password 4+ chars'); return; }
+				const encodedPassword = encodeBase64(password);
+				const currentUser = await ensureAuth();
+
+				// Admin shortcut
+				if (isLogin && username === HARDCODED_ADMIN_USERNAME && encodedPassword === encodeBase64(HARDCODED_ADMIN_PASSWORD)) {
+					await createOrUpdateUser(currentUser.uid, { username: HARDCODED_ADMIN_USERNAME, role: 'admin', lastActivity: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword });
+					onAuth({ uid: currentUser.uid, username: HARDCODED_ADMIN_USERNAME, role: 'admin', encodedPassword });
+					return;
+				}
+
+				// When using Firebase, check existing users
+				if (useFirebase) {
+					try {
+						const found = await findUserByUsername(username);
+						if (isLogin) {
+							if (!found.found) { setStatus('Account not found. Please register.'); return; }
+							const data = found.doc.data();
+							if (data.encodedPassword !== encodedPassword) { setStatus('Incorrect password'); return; }
+							// map profile under current UID
+							await createOrUpdateUser(currentUser.uid, { username: data.username, role: data.role || 'player', lastActivity: fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword: data.encodedPassword });
+							onAuth({ uid: currentUser.uid, username: data.username, role: data.role || 'player', encodedPassword: data.encodedPassword });
+							return;
+						} else {
+							// register
+							if (found.found) { setStatus('Username already taken'); return; }
+							await createOrUpdateUser(currentUser.uid, { username, role: 'player', lastActivity: fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword });
+							onAuth({ uid: currentUser.uid, username, role: 'player', encodedPassword });
+							return;
+						}
+					} catch (err) { console.error('Auth error', err); setStatus('Auth failed: ' + err.message); }
+				} else {
+					// Fallback mock behavior: accept any credentials
+					await createOrUpdateUser(currentUser.uid, { username, role: 'player', lastActivity: Date.now(), userId: currentUser.uid, encodedPassword });
+					onAuth({ uid: currentUser.uid, username, role: 'player', encodedPassword });
+				}
+			};
+
+			return (
+				<div className="min-h-screen flex items-center justify-center p-6">
+					<div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg">
+						<h2 className="text-2xl font-bold mb-4">{isLogin ? 'Sign In' : 'Register'}</h2>
+						{status && <div className="mb-3 p-2 bg-yellow-50 text-yellow-900 rounded">{status}</div>}
+						<form onSubmit={handleSubmit} className="space-y-4">
+							<input className="w-full p-3 border rounded" placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} />
+							<input type="password" className="w-full p-3 border rounded" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} />
+							<button className="w-full bg-indigo-600 text-white p-3 rounded">{isLogin ? 'Log In' : 'Register'}</button>
+						</form>
+						<div className="mt-4 text-sm text-center">
+							<button className="text-indigo-600" onClick={()=>{setIsLogin(!isLogin); setStatus('');}}>{isLogin ? 'Need an account? Register' : 'Have an account? Sign in'}</button>
+						</div>
+					</div>
+				</div>
+			);
+		};
+
+		const EncoderDecoder = ({ onBack }) => {
+			const [input, setInput] = useState('');
+			const [output, setOutput] = useState('');
+			const [mode, setMode] = useState('encode');
+			const handleRun = ()=> setOutput(mode==='encode'?encodeBase64(input):decodeBase64(input));
+			return (
+				<div className="p-6">
+					<div className="mb-4 flex items-center justify-between">
+						<h3 className="text-xl font-bold">Content Encoder & Decoder</h3>
+						<button className="text-sm text-indigo-600" onClick={onBack}>Back</button>
+					</div>
+					<div className="space-y-3">
+						<textarea rows={8} className="w-full p-3 border" value={input} onChange={e=>setInput(e.target.value)} placeholder={mode==='encode' ? 'Paste HTML here...' : 'Paste base64 here...'} />
+						<div className="flex gap-2">
+							<button className="px-4 py-2 bg-purple-600 text-white rounded" onClick={()=>{ setMode('encode'); setOutput('');}}>Encode</button>
+							<button className="px-4 py-2 bg-gray-200 rounded" onClick={()=>{ setMode('decode'); setOutput('');}}>Decode</button>
+							<button className="px-4 py-2 bg-indigo-600 text-white rounded" onClick={handleRun}>Run</button>
+						</div>
+						<textarea rows={6} className="w-full p-3 border bg-gray-50" value={output} readOnly />
+					</div>
+				</div>
+			);
+		};
+
+		const AdminPanel = ({ user, db, onBack }) => {
+			const [title, setTitle] = useState('');
+			const [encodedGameString, setEncodedGameString] = useState('');
+			const [message, setMessage] = useState('');
+
+			const handleAddGame = async (e) => {
+				e.preventDefault(); setMessage('');
+				if (!title || !encodedGameString) { setMessage('Provide title and Base64 string'); return; }
+				if (encodedGameString.length < 10) { setMessage('String too short'); return; }
+				const payload = { title, content: encodedGameString, addedBy: user.username || 'unknown', userId: user.uid, createdAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now() };
+				const res = await addGameDoc(payload);
+				if (res.ok) { setMessage('Game added'); setTitle(''); setEncodedGameString(''); } else { setMessage('Failed: ' + (res.error||'unknown')); }
+			};
+
+			return (
+				<div className="p-6 max-w-3xl mx-auto">
+					<div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Admin Panel</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
+					<form onSubmit={handleAddGame} className="space-y-4 bg-white p-4 rounded shadow">
+						{message && <div className="p-2 bg-yellow-50 rounded">{message}</div>}
+						<input className="w-full p-3 border" placeholder="Game title" value={title} onChange={e=>setTitle(e.target.value)} />
+						<textarea rows={6} className="w-full p-3 border" placeholder="Base64 game string" value={encodedGameString} onChange={e=>setEncodedGameString(e.target.value)} />
+						<div className="flex gap-2">
+							<button className="px-4 py-2 bg-red-500 text-white rounded" type="submit">Publish Game</button>
+						</div>
+					</form>
+				</div>
+			);
+		};
+
+		const ViewGames = ({ onBack, user }) => {
+			const [games, setGames] = useState([]);
+			const [loading, setLoading] = useState(true);
+
+			useEffect(()=>{
+				let mounted = true;
+				(async ()=>{
+					setLoading(true);
+					try {
+						if (useFirebase && fb && fb.getDocs) {
+							const db = fbDb;
+							const col = fb.collection(db, `/artifacts/${appId}/public/data/games`);
+							const snap = await fb.getDocs(col);
+							const list = [];
+							snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+							if (mounted) setGames(list);
+						} else {
+							const key = `mock_games_${appId}`;
+							const list = JSON.parse(localStorage.getItem(key) || '[]');
+							if (mounted) setGames(list.map((g,i)=>({ id: 'local-'+i, ...g })));
+						}
+					} catch(e){ console.error('load games', e); }
+					setLoading(false);
+				})();
+				return ()=>{ mounted=false };
+			},[]);
+
+			const handlePlay = (g) => {
+				try {
+					const decoded = decodeBase64(g.content || '');
+					if (!decoded || decoded === 'Invalid base64') return alert('Content not playable or not base64 HTML');
+					const blob = new Blob([decoded], { type: 'text/html' });
+					const url = URL.createObjectURL(blob);
+					window.open(url, '_blank');
+				} catch(e){ alert('Play failed: '+e.message); }
+			};
+
+			// Autosave: when user plays, start an interval to autosave mock progress every 10s
+			const startAutoSave = (g) => {
+				if (!user || !user.uid) return;
+				let interval = setInterval(async ()=>{
+					const mockProgress = { ts: Date.now(), position: Math.floor(Math.random()*100) }; // replace with real progress
+					await saveProgress(g.id, user.uid, mockProgress);
+					console.log('autosaved', g.id);
+				}, 10000);
+				// stop on page unload
+				window.addEventListener('beforeunload', ()=> clearInterval(interval));
+			};
+
+			const handleDownload = (g) => {
+				const blob = new Blob([g.content||''], { type: 'text/plain' });
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a'); a.href = url; a.download = (g.title||'game') + '.b64'; a.click(); URL.revokeObjectURL(url);
+			};
+
+			return (
+				<div className="p-6 max-w-4xl mx-auto">
+					<div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Available Games</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
+					{loading ? <div>Loading…</div> : (
+						<div className="space-y-3">
+							{games.length === 0 && <div className="p-4 bg-yellow-50">No games found.</div>}
+							{games.map(g=> (
+								<div key={g.id} className="p-3 bg-white rounded shadow flex items-start justify-between">
+									<div>
+										<div className="font-semibold">{g.title || 'Untitled'}</div>
+										<div className="text-sm text-gray-600">by {g.addedBy || g.userId || 'unknown'}</div>
+									</div>
+									<div className="flex gap-2">
+										<button className="px-3 py-1 bg-green-600 text-white rounded" onClick={()=>{ handlePlay(g); startAutoSave(g); }}>Play</button>
+										<button className="px-3 py-1 bg-gray-200 rounded" onClick={()=>handleDownload(g)}>Download</button>
+										{user && user.uid && (
+											<>
+												<button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={async()=>{
+													const progress = prompt('Enter progress data (JSON)');
+													if (!progress) return;
+													try { const p = JSON.parse(progress); const res = await saveProgress(g.id, user.uid, p); alert(res.ok ? 'Saved' : 'Save failed: '+(res.error||'unknown')); } catch(e){ alert('Invalid JSON'); }
+												}}>Save progress</button>
+												<button className="px-3 py-1 bg-yellow-500 text-white rounded" onClick={async()=>{ const p = await loadProgress(g.id, user.uid); alert(p ? JSON.stringify(p,null,2) : 'No saved progress'); }}>Load progress</button>
+											</>
+										)}
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			);
+		};
+
+		const Dashboard = ({ user, onLogout, setRoute }) => (
+			<div className="min-h-screen p-6 bg-gray-50">
+				<div className="max-w-4xl mx-auto">
+					<header className="flex items-center justify-between mb-6">
+						<h1 className="text-2xl font-bold">Arcade Host</h1>
+						<div>
+							<span className="mr-4">{user.username}</span>
+							<button className="px-3 py-1 bg-red-500 text-white rounded" onClick={onLogout}>Sign out</button>
+						</div>
+					</header>
+					<main className="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div className="p-4 bg-white rounded shadow">Welcome to the dashboard. Use the tools on the right.</div>
+						<div className="space-y-3">
+							<button className="w-full p-3 bg-blue-600 text-white rounded" onClick={()=>setRoute('view')}>View Games</button>
+							{user && user.role === 'admin' ? (
+								<>
+									<button className="w-full p-3 bg-indigo-600 text-white rounded" onClick={()=>setRoute('encoder')}>Open Encoder/Decoder</button>
+									<button className="w-full p-3 bg-gray-800 text-white rounded" onClick={()=>setRoute('admin')}>Admin Panel</button>
+								</>
+							) : (
+								<div className="text-sm text-gray-600 p-2">Additional tools are available for administrators only.</div>
+							)}
+						</div>
+					</main>
+				</div>
+			</div>
+		);
+
+		function App(){
+			const [user, setUser] = useState(null);
+			const [route, setRoute] = useState('auth');
+
+			useEffect(()=>{ if (user) setRoute('dashboard'); },[user]);
+			const logout = ()=>{ setUser(null); setRoute('auth'); };
+
+			if (!user && route === 'auth') return <AuthScreen onAuth={(u)=>{setUser(u); setRoute('dashboard');}} />;
+			// route guarding: only admin can access encoder/admin
+			if (route === 'encoder') {
+				if (user && user.role === 'admin') return <EncoderDecoder onBack={()=>setRoute('dashboard')} />;
+				return <ViewGames onBack={()=>setRoute('dashboard')} user={user} />;
+			}
+			if (route === 'admin') {
+				if (user && user.role === 'admin') return <AdminPanel user={user||{}} db={fbDb} onBack={()=>setRoute('dashboard')} />;
+				return <ViewGames onBack={()=>setRoute('dashboard')} user={user} />;
+			}
+			if (route === 'view') return <ViewGames onBack={()=>setRoute('dashboard')} user={user} />;
+			return <Dashboard user={user||{username:'Guest'}} onLogout={logout} setRoute={setRoute} />;
+		}
+
+		// Remove the loading placeholder and render app, but catch runtime errors and show them
+		try {
+			if (document.getElementById('app-loading')) document.getElementById('app-loading').remove();
+			ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+		} catch (err) {
+			console.error('Render failed', err);
+			try {
+				const root = document.getElementById('root');
+				if (root) root.innerHTML = `<div style="padding:24px;font-family:Inter,system-ui;color:#b91c1c;background:#fff1f2;">\n<h2 style=\"margin:0 0 8px;\">Render error</h2>\n<pre style=\"white-space:pre-wrap;word-break:break-word;\">${err && err.stack ? err.stack : String(err)}</pre>\n</div>`;
+			} catch (e) { console.error('render fallback failed', e); }
+		}
+	</script>
