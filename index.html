@@ -60,35 +60,34 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        // ONLY anonymous sign-in is needed for auth
-        import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // Imports for Email/Password Auth
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Expose Firebase functions globally for the Babel script
         window.firebase = {
-            initializeApp, getAuth, signInAnonymously, onAuthStateChanged, signOut, 
+            initializeApp, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, 
             getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc, 
         };
-    </script>
 
-    <script>
+        // Initialize Firebase and expose Auth/DB objects globally
         (function(){
             try {
                 const cfg = window.__firebase_config || null;
-                if (!cfg) { console.log('No window.__firebase_config found; skipping early firebase initialize.'); return; }
-                if (!window.firebase || !window.firebase.initializeApp) { console.warn('Firebase SDK not available yet; ensure the module script loaded.'); return; }
+                if (!cfg) { console.log('No window.__firebase_config found; skipping firebase initialize.'); return; }
+                if (!window.firebase || !window.firebase.initializeApp) { console.warn('Firebase SDK not ready for init.'); return; }
                 
                 try {
                     const app = window.firebase.initializeApp(cfg);
                     window.__firebase_app = app;
-                    window.__firebase_auth = window.firebase.getAuth ? window.firebase.getAuth(app) : null;
-                    window.__firebase_db = window.firebase.getFirestore ? window.firebase.getFirestore(app) : null;
+                    window.__firebase_auth = window.firebase.getAuth(app);
+                    window.__firebase_db = window.firebase.getFirestore(app);
                     window.__fb_ready = true;
-                    console.log('Firebase initialized (early):', !!window.__firebase_app);
+                    console.log('Firebase initialized successfully.');
                 } catch (e) {
-                    console.warn('Early firebase initializeApp failed:', e && e.message ? e.message : e);
+                    console.warn('Firebase initializeApp failed:', e && e.message ? e.message : e);
                 }
-            } catch (err) { console.error('Early firebase init wrapper error', err); }
+            } catch (err) { console.error('Firebase init wrapper error', err); }
         })();
     </script>
     
@@ -99,8 +98,6 @@
         
         // --- Setup and Utilities ---
         
-        // Error handling omitted for brevity but should be kept in production
-
         const getIcon = (name) => {
             if (window.lucide && window.lucide[name]) return window.lucide[name];
             return ({ className = '', ...props }) => React.createElement('span', { className: `inline-block ${className}`, ...props }, '[icon]');
@@ -130,7 +127,7 @@
 
         // --- Custom User/Profile Management Functions ---
         
-        // **RESTORED:** Finds user profile by username in Firestore
+        // Used to check for a custom username during registration (Firestore check)
         const findUserByUsername = async (username) => {
             if (!useFirebase) return { found: false };
             try {
@@ -142,7 +139,7 @@
             return { found: false };
         };
 
-        // **RESTORED:** Creates or updates the user profile in Firestore
+        // Used to create or update the user's *profile* in Firestore
         const createOrUpdateUser = async (uid, payload) => {
             if (!useFirebase) return true;
             try {
@@ -151,84 +148,132 @@
                 return true;
             } catch (e) { console.error('set user profile error', e); return false; }
         };
-        
-        // --- Data Persistence (Game, Request, Progress) Functions ---
-        
-        const addGameDoc = async (payload) => { /* Logic as before */
-            if (!useFirebase) { try { const key = `mock_games_${appId}`; const list = JSON.parse(localStorage.getItem(key) || '[]'); list.push(Object.assign({}, payload, { _localSavedAt: Date.now() })); localStorage.setItem(key, JSON.stringify(list)); console.warn('addGameDoc: saved to localStorage mock:', payload); return { ok: true, mock: true }; } catch (e) { return { ok: false, error: 'No firebase and localStorage failed: ' + (e && e.message) }; } }
-            try { const gamesRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/games`); await fb.addDoc(gamesRef, payload); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+
+        const addGameDoc = async (payload) => {
+            if (!useFirebase) {
+                try {
+                    const key = `mock_games_${appId}`;
+                    const list = JSON.parse(localStorage.getItem(key) || '[]');
+                    list.push(Object.assign({}, payload, { _localSavedAt: Date.now() }));
+                    localStorage.setItem(key, JSON.stringify(list));
+                    console.warn('addGameDoc: saved to localStorage mock:', payload);
+                    return { ok: true, mock: true };
+                } catch (e) {
+                    return { ok: false, error: 'No firebase and localStorage failed: ' + (e && e.message) };
+                }
+            }
+            try {
+                const gamesRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/games`);
+                await fb.addDoc(gamesRef, payload);
+                return { ok: true };
+            } catch (e) { return { ok: false, error: e.message }; }
         };
 
-        const addRequestDoc = async (payload) => { /* Logic as before */
-            if (!useFirebase) { try { const key = `mock_requests_${appId}`; const list = JSON.parse(localStorage.getItem(key) || '[]'); list.push(Object.assign({}, payload, { _localSavedAt: Date.now() })); localStorage.setItem(key, JSON.stringify(list)); console.warn('addRequestDoc: saved to localStorage mock:', payload); return { ok: true, mock: true }; } catch (e) { return { ok: false, error: e.message }; } }
-            try { const reqRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/requests`); await fb.addDoc(reqRef, Object.assign({}, payload, { createdAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), status: 'open' })); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+        const addRequestDoc = async (payload) => {
+            if (!useFirebase) {
+                try {
+                    const key = `mock_requests_${appId}`;
+                    const list = JSON.parse(localStorage.getItem(key) || '[]');
+                    list.push(Object.assign({}, payload, { _localSavedAt: Date.now() }));
+                    localStorage.setItem(key, JSON.stringify(list));
+                    console.warn('addRequestDoc: saved to localStorage mock:', payload);
+                    return { ok: true, mock: true };
+                } catch (e) { return { ok: false, error: e.message }; }
+            }
+            try {
+                const reqRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/requests`);
+                await fb.addDoc(reqRef, Object.assign({}, payload, { createdAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), status: 'open' }));
+                return { ok: true };
+            } catch (e) { return { ok: false, error: e.message }; }
         };
 
-        const saveProgress = async (gameId, uid, progress) => { /* Logic as before */
-            if (!gameId || !uid) return { ok: false, error: 'missing gameId or uid' }; const payload = { gameId, userId: uid, progress, updatedAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now() };
-            if (!useFirebase) { try { const key = `progress_${appId}_${uid}_${gameId}`; localStorage.setItem(key, JSON.stringify(payload)); return { ok: true, mock: true }; } catch (e) { return { ok: false, error: e.message }; } }
-            try { const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/progress`, `${uid}_${gameId}`); await fb.setDoc(ref, payload, { merge: true }); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+        const saveProgress = async (gameId, uid, progress) => {
+            if (!gameId || !uid) return { ok: false, error: 'missing gameId or uid' };
+            const payload = { gameId, userId: uid, progress, updatedAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now() };
+            if (!useFirebase) {
+                try {
+                    const key = `progress_${appId}_${uid}_${gameId}`;
+                    localStorage.setItem(key, JSON.stringify(payload));
+                    return { ok: true, mock: true };
+                } catch (e) { return { ok: false, error: e.message }; }
+            }
+            try {
+                const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/progress`, `${uid}_${gameId}`);
+                await fb.setDoc(ref, payload, { merge: true });
+                return { ok: true };
+            } catch (e) { return { ok: false, error: e.message }; }
         };
 
-        const loadProgress = async (gameId, uid) => { /* Logic as before */
+        const loadProgress = async (gameId, uid) => {
             if (!gameId || !uid) return null;
-            if (!useFirebase) { const key = `progress_${appId}_${uid}_${gameId}`; try { return JSON.parse(localStorage.getItem(key)); } catch(e){ return null; } }
-            try { const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/progress`, `${uid}_${gameId}`); const snap = await fb.getDoc(ref); if (snap && snap.exists) return snap.data(); return null; } catch(e){ console.error('loadProgress', e); return null; }
+            if (!useFirebase) {
+                const key = `progress_${appId}_${uid}_${gameId}`;
+                try { return JSON.parse(localStorage.getItem(key)); } catch(e){ return null; }
+            }
+            try {
+                const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/progress`, `${uid}_${gameId}`);
+                const snap = await fb.getDoc(ref);
+                if (snap && snap.exists) return snap.data();
+                return null;
+            } catch(e){ console.error('loadProgress', e); return null; }
         };
 
-        // --- AUTH SCREEN (RESTORED: ANONYMOUS) ---
+        // --- AUTH SCREEN (EMAIL/PASSWORD) ---
         const AuthScreen = ({ onAuth }) => {
             const [isLogin, setIsLogin] = useState(true);
-            const [username, setUsername] = useState(''); 
+            const [email, setEmail] = useState(''); 
+            const [password, setPassword] = useState('');
+            const [username, setUsername] = useState(''); // Only used for registration
             const [status, setStatus] = useState('');
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setStatus('');
-                if (username.length < 3) { setStatus('Username must be 3+ chars'); return; }
+                if (!email || password.length < 6) { setStatus('Enter a valid email and password (6+ chars)'); return; }
+                if (!isLogin && username.length < 3) { setStatus('Username must be 3+ chars'); return; }
 
                 // --- LOCAL/MOCK MODE FALLBACK ---
                 if (!useFirebase) {
                     setStatus("Warning: Firebase not active. Logging in with mock data.");
-                    onAuth({ uid: 'local-'+Date.now(), username, role: 'player' });
+                    onAuth({ uid: 'local-'+Date.now(), username: username || 'mock-user', role: 'player', email });
                     return;
                 }
                 
                 try {
-                    // 1. Check if the username is taken in the profile database
-                    const { found, doc } = await findUserByUsername(username);
-
                     if (isLogin) {
-                        // --- ANONYMOUS LOGIN (Simulated) ---
-                        if (!found) { 
-                            setStatus('Account not found. Please register.'); 
-                            return; 
+                        // --- FIREBASE LOGIN ---
+                        const userCredential = await fb.signInWithEmailAndPassword(fbAuth, email, password);
+                        const user = userCredential.user;
+                        
+                        // Fetch the Firestore profile
+                        const profileRef = fb.doc(fbDb, `/artifacts/${appId}/public/data/users`, user.uid);
+                        const profileSnap = await fb.getDoc(profileRef);
+
+                        if (profileSnap.exists()) {
+                            const profileData = profileSnap.data();
+                            await createOrUpdateUser(user.uid, { lastActivity: fb.serverTimestamp() });
+                            onAuth({ uid: user.uid, ...profileData });
+                        } else {
+                            // Create a minimal profile if one doesn't exist
+                            const defaultProfile = { email, username: user.email.split('@')[0], role: 'player', lastActivity: fb.serverTimestamp() };
+                            await createOrUpdateUser(user.uid, defaultProfile);
+                            onAuth({ uid: user.uid, ...defaultProfile });
                         }
-                        
-                        const profileData = doc.data();
-                        
-                        // Sign in anonymously to get a UID for session tracking
-                        const authResult = await fb.signInAnonymously(fbAuth);
-                        const user = authResult.user;
-
-                        // Update the profile to link the new anonymous UID (if necessary)
-                        await createOrUpdateUser(user.uid, { ...profileData, lastActivity: fb.serverTimestamp() });
-
-                        onAuth({ uid: user.uid, ...profileData });
 
                     } else {
-                        // --- ANONYMOUS REGISTRATION ---
-                        if (found) { 
-                            setStatus('Username already taken.'); 
-                            return; 
-                        }
+                        // --- FIREBASE REGISTRATION ---
 
-                        // Sign in anonymously to get a unique UID
-                        const authResult = await fb.signInAnonymously(fbAuth);
-                        const user = authResult.user;
+                        // 1. Check if the chosen username is already taken in Firestore
+                        const found = await findUserByUsername(username);
+                        if (found.found) { setStatus('Username already taken. Please choose another.'); return; }
+                        
+                        // 2. Create the user in Firebase Auth
+                        const userCredential = await fb.createUserWithEmailAndPassword(fbAuth, email, password);
+                        const user = userCredential.user;
 
-                        // Create the profile in Firestore using the new anonymous UID
+                        // 3. Create the profile in Firestore
                         const newProfile = { 
+                            email: user.email, 
                             username, 
                             role: 'player', 
                             lastActivity: fb.serverTimestamp(), 
@@ -239,8 +284,26 @@
                         onAuth({ uid: user.uid, ...newProfile });
                     }
                 } catch (err) {
+                    let errorMessage = 'Authentication failed.';
+                    if (err.code) {
+                        switch (err.code) {
+                            case 'auth/user-not-found':
+                            case 'auth/wrong-password':
+                                errorMessage = 'Invalid email or password.';
+                                break;
+                            case 'auth/email-already-in-use':
+                                errorMessage = 'Email is already registered. Try logging in.';
+                                break;
+                            case 'auth/weak-password':
+                                errorMessage = 'Password should be at least 6 characters.';
+                                break;
+                            default:
+                                errorMessage = `Auth Error: ${err.code.replace('auth/', '')}`;
+                                break;
+                        }
+                    }
                     console.error('Auth error', err);
-                    setStatus(`Authentication failed: ${err.message || 'unknown error'}`);
+                    setStatus(errorMessage);
                 }
             };
 
@@ -250,22 +313,22 @@
                         <h2 className="text-2xl font-bold mb-4">{isLogin ? 'Sign In' : 'Register'}</h2>
                         {status && <div className="mb-3 p-2 bg-yellow-50 text-yellow-900 rounded">{status}</div>}
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            <input className="w-full p-3 border rounded" placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} />
+                            <input type="email" className="w-full p-3 border rounded" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} />
+                            <input type="password" className="w-full p-3 border rounded" placeholder="Password (6+ characters)" value={password} onChange={e=>setPassword(e.target.value)} />
+                            {!isLogin && (
+                                <input className="w-full p-3 border rounded" placeholder="Username (for display)" value={username} onChange={e=>setUsername(e.target.value)} />
+                            )}
                             <button className="w-full bg-indigo-600 text-white p-3 rounded">{isLogin ? 'Log In' : 'Register'}</button>
                         </form>
                         <div className="mt-4 text-sm text-center">
-                            <button className="text-indigo-600" onClick={()=>{setIsLogin(!isLogin); setStatus('');}}>
-                                {isLogin ? 'Need an account? Register' : 'Have an account? Sign in'}
-                            </button>
+                            <button className="text-indigo-600" onClick={()=>{setIsLogin(!isLogin); setStatus('');}}>{isLogin ? 'Need an account? Register' : 'Have an account? Sign in'}</button>
                         </div>
                     </div>
                 </div>
             );
         };
 
-        // --- All other components follow (RequestGame, AdminRequests, etc.) ---
-        
-        const RequestGame = ({ onBack, user }) => { /* ... (Same as before) ... */
+        const RequestGame = ({ onBack, user }) => { /* ... (Content same as before) ... */
             const [title, setTitle] = useState(''); const [details, setDetails] = useState(''); const [status, setStatus] = useState('');
             const handleSubmit = async (e) => { e.preventDefault(); setStatus(''); if (!title) { setStatus('Provide a title'); return; } const payload = { title, details, requestedBy: user ? user.username || user.uid : 'anon', requesterId: user?user.uid:null }; const res = await addRequestDoc(payload); if (res.ok) { setStatus('Request submitted'); setTitle(''); setDetails(''); } else setStatus('Failed: '+(res.error||'unknown')); };
             return (
@@ -274,7 +337,7 @@
             );
         };
 
-        const AdminRequests = ({ onBack }) => { /* ... (Same as before) ... */
+        const AdminRequests = ({ onBack }) => { /* ... (Content same as before) ... */
             const [requests, setRequests] = useState([]);
             useEffect(()=>{ let mounted=true; (async ()=>{
                 if (useFirebase && fb.getDocs) { const col = fb.collection(fbDb, `/artifacts/${appId}/public/data/requests`); const snap = await fb.getDocs(col); const list=[]; snap.forEach(d=>list.push({id:d.id, ...d.data()})); if(mounted) setRequests(list); } 
@@ -295,7 +358,7 @@
             );
         };
         
-        const EncoderDecoder = ({ onBack }) => { /* ... (Same as before) ... */
+        const EncoderDecoder = ({ onBack }) => { /* ... (Content same as before) ... */
             const [input, setInput] = useState(''); const [output, setOutput] = useState(''); const [mode, setMode] = useState('encode');
             const handleRun = ()=> setOutput(mode==='encode'?encodeBase64(input):decodeBase64(input));
             return (
@@ -307,7 +370,7 @@
             );
         };
 
-        const AdminPanel = ({ user, db, onBack }) => { /* ... (Same as before) ... */
+        const AdminPanel = ({ user, db, onBack }) => { /* ... (Content same as before) ... */
             const [title, setTitle] = useState(''); const [encodedGameString, setEncodedGameString] = useState(''); const [message, setMessage] = useState('');
             const handleAddGame = async (e) => { e.preventDefault(); setMessage(''); if (!title || !encodedGameString) { setMessage('Provide title and Base64 string'); return; } if (encodedGameString.length < 10) { setMessage('String too short'); return; }
                 const payload = { title, content: encodedGameString, addedBy: user.username || 'unknown', userId: user.uid, createdAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now() };
@@ -322,7 +385,7 @@
             );
         };
 
-        const ViewGames = ({ onBack, user }) => { /* ... (Same as before) ... */
+        const ViewGames = ({ onBack, user }) => { /* ... (Content same as before) ... */
             const [games, setGames] = useState([]); const [loading, setLoading] = useState(true);
             useEffect(()=>{ let mounted = true; (async ()=>{ setLoading(true); try { if (useFirebase && fb && fb.getDocs) { const db = fbDb; const col = fb.collection(db, `/artifacts/${appId}/public/data/games`); const snap = await fb.getDocs(col); const list = []; snap.forEach(d => list.push({ id: d.id, ...d.data() })); if (mounted) setGames(list); } else { const key = `mock_games_${appId}`; const list = JSON.parse(localStorage.getItem(key) || '[]'); if (mounted) setGames(list.map((g,i)=>({ id: 'local-'+i, ...g }))); } } catch(e){ console.error('load games', e); } setLoading(false); })(); return ()=>{ mounted=false }; },[]);
             const handlePlay = (g) => { try { const decoded = decodeBase64(g.content || ''); if (!decoded || decoded === 'Invalid base64') return alert('Content not playable or not base64 HTML'); const blob = new Blob([decoded], { type: 'text/html' }); const url = URL.createObjectURL(blob); window.open(url, '_blank'); } catch(e){ alert('Play failed: '+e.message); } };
@@ -349,13 +412,12 @@
 
             useEffect(() => {
                 const loader = document.getElementById('app-loading');
-                if (!useFirebase) {
+                if (!useFirebase || !fbAuth) {
                     setLoading(false);
                     if (loader) loader.style.display = 'none';
                     return;
                 }
                 
-                // **RESTORED:** Use onAuthStateChanged to manage the anonymous session
                 const unsubscribe = fb.onAuthStateChanged(fbAuth, async (fbUser) => {
                     if (fbUser) {
                         try {
@@ -364,8 +426,8 @@
                             if (userSnap.exists()) {
                                 setUser({ uid: fbUser.uid, ...userSnap.data() });
                             } else {
-                                // If Auth user exists but no profile, force them to AuthScreen to set a username
-                                setUser(null); 
+                                // Fallback profile if Firestore record is missing
+                                setUser({ uid: fbUser.uid, email: fbUser.email, username: fbUser.email.split('@')[0], role: 'player' }); 
                             }
                         } catch (e) { 
                             console.error('Error fetching user profile:', e); 
@@ -384,7 +446,6 @@
             const handleAuthSuccess = (u) => { setUser(u); setView('home'); };
 
             const handleSignOut = async () => {
-                // **RESTORED:** Signing out from Anonymous Auth
                 if (fb && fb.signOut && fbAuth) {
                     try {
                         await fb.signOut(fbAuth);
@@ -396,8 +457,7 @@
 
             if (loading) { return <div className="min-h-screen flex items-center justify-center"><RefreshCw className="animate-spin text-indigo-600 w-8 h-8"/></div>; }
 
-            // If user is not logged in or has no profile, show AuthScreen
-            if (!user || !user.username) {
+            if (!user) {
                 return <AuthScreen onAuth={handleAuthSuccess} />;
             }
             
