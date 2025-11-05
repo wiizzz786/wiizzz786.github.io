@@ -1,621 +1,698 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arcade Host Platform</title>
-    <!-- Load Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load React, ReactDOM, and Babel -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Configure Font for Tailwind -->
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-        }
-        .animate-spin {
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        /* Custom styles for the game iframe to take up max space */
-        .game-iframe {
-            width: 100%;
-            height: calc(100vh - 12rem); /* Adjusted height to fit within the screen */
-            border: 4px solid #4f46e5;
-            border-radius: 12px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            background-color: white;<script>
-  const firebaseConfig = {
-  apiKey: "AIzaSyCrVhsbABjUW5pRGt4Tf0-T9KlHGjux-z4",
-  authDomain: "wiiizzz786games.firebaseapp.com",
-  projectId: "wiiizzz786games",
-  storageBucket: "wiiizzz786games.firebasestorage.app",
-  messagingSenderId: "719578059323",
-  appId: "1:719578059323:web:cc822225b1fadf303d021e",
-  measurementId: "G-8FVD56NSCT"
-};
-
-  // Logical app id used by this page (used for Firestore paths). Choose any short id.
-  window.__app_id = "my-arcade-app";
-</script>
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Host Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        /* Custom styles for the game iframe to take up max space */
+        .game-iframe {
+            width: 100%;
+            height: calc(100vh - 12rem); /* Adjusted height to fit within the screen */
+            border: 4px solid #4f46e5;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            background-color: white;
+        }
+    </style>
 </head>
 <body>
-	<div id="root">
-		<!-- Visible loading placeholder to avoid white screen while JS boots -->
-		<div id="app-loading" style="height:100vh;display:flex;align-items:center;justify-content:center;background:#f3f4f6;font-family:Inter, system-ui, -apple-system;">
-			<div style="text-align:center;color:#374151">
-				<div style="font-size:24px;font-weight:600;margin-bottom:8px">Loading app…</div>
-				<div style="color:#6b7280">If this message persists, open DevTools → Console to see errors.</div>
-			</div>
-		</div>
-	</div>
+    <div id="root">
+        <div id="app-loading" style="height:100vh;display:flex;align-items:center;justify-content:center;background:#f3f4f6;font-family:Inter, system-ui, -apple-system;">
+            <div style="text-align:center;color:#374151">
+                <div style="font-size:24px;font-weight:600;margin-bottom:8px">Loading app…</div>
+                <div style="color:#6b7280">If this message persists, open DevTools → Console to see errors.</div>
+            </div>
+        </div>
+    </div>
 
-    <!-- Load Lucide Icons UMD Bundle (This defines the global 'lucide' variable) -->
-    <script src="https://unpkg.com/lucide-react@latest/umd/lucide-react.js"></script>
+    <script>
+        // User-provided Firebase Web config — MUST be defined before the Firebase initializer script runs
+        window.__firebase_config = {
+            apiKey: "AIzaSyCrVhsbABjUW5pRGt4Tf0-T9KlHGjux-z4",
+            authDomain: "wiiizzz786games.firebaseapp.com",
+            projectId: "wiiizzz786games",
+            storageBucket: "wiiizzz786games.firebasestorage.app",
+            messagingSenderId: "719578059323",
+            appId: "1:719578059323:web:cc822225b1fadf303d021e",
+            measurementId: "G-8FVD56NSCT"
+        };
+        // short id used by this app for Firestore paths
+        window.__app_id = 'wiiizzz786games';
+    </script>
 
-    <!-- Firebase Imports and Setup -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <script src="https://unpkg.com/lucide-react@latest/umd/lucide-react.js"></script>
 
-        // Expose Firebase functions globally for the Babel script
-        window.firebase = {
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, 
-            getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc, 
-        };
-    </script>
-	<script>
-		// User-provided Firebase Web config — injected so the page initializes Firebase automatically
-		window.__firebase_config = {
-			apiKey: "AIzaSyCrVhsbABjUW5pRGt4Tf0-T9KlHGjux-z4",
-			authDomain: "wiiizzz786games.firebaseapp.com",
-			projectId: "wiiizzz786games",
-			storageBucket: "wiiizzz786games.firebasestorage.app",
-			messagingSenderId: "719578059323",
-			appId: "1:719578059323:web:cc822225b1fadf303d021e",
-			measurementId: "G-8FVD56NSCT"
-		};
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-		const RequestGame = ({ onBack, user }) => {
-			const [title, setTitle] = useState('');
-			const [details, setDetails] = useState('');
-			const [status, setStatus] = useState('');
-			const handleSubmit = async (e) => {
-				e.preventDefault(); setStatus('');
-				if (!title) { setStatus('Provide a title'); return; }
-				const payload = { title, details, requestedBy: user ? user.username || user.uid : 'anon', requesterId: user?user.uid:null };
-				const res = await addRequestDoc(payload);
-				if (res.ok) { setStatus('Request submitted'); setTitle(''); setDetails(''); } else setStatus('Failed: '+(res.error||'unknown'));
-			};
+        // Expose Firebase functions globally for the Babel script
+        window.firebase = {
+            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, 
+            getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc, 
+        };
+    </script>
 
-			return (
-				<div className="p-6 max-w-2xl mx-auto">
-					<div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Request a Game</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
-					<form onSubmit={handleSubmit} className="space-y-3 bg-white p-4 rounded shadow">
-						{status && <div className="p-2 bg-yellow-50">{status}</div>}
-						<input className="w-full p-3 border" placeholder="Game title" value={title} onChange={e=>setTitle(e.target.value)} />
-						<textarea rows={6} className="w-full p-3 border" placeholder="Details / why you want it" value={details} onChange={e=>setDetails(e.target.value)} />
-						<button className="px-4 py-2 bg-indigo-600 text-white rounded" type="submit">Send Request</button>
-					</form>
-				</div>
-			);
-		};
+    <script>
+        (function(){
+            try {
+                const cfg = window.__firebase_config || null;
+                if (!cfg) { console.log('No window.__firebase_config found; skipping early firebase initialize.'); return; }
+                if (!window.firebase || !window.firebase.initializeApp) { console.warn('Firebase SDK not available yet; ensure the module script loaded.'); return; }
+                
+                try {
+                    const app = window.firebase.initializeApp(cfg);
+                    window.__firebase_app = app;
+                    window.__firebase_auth = window.firebase.getAuth ? window.firebase.getAuth(app) : null;
+                    window.__firebase_db = window.firebase.getFirestore ? window.firebase.getFirestore(app) : null;
+                    window.__fb_ready = true;
+                    console.log('Firebase initialized (early):', !!window.__firebase_app);
+                } catch (e) {
+                    // This is where you might see auth domain or API key errors.
+                    console.warn('Early firebase initializeApp failed:', e && e.message ? e.message : e);
+                }
+            } catch (err) { console.error('Early firebase init wrapper error', err); }
+        })();
+    </script>
+    
+    <script type="text/babel">
+        // Defensive app: supports real Firebase when a config is provided via window.__firebase_config
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        let firebaseConfig = {};
+        try { if (typeof window.__firebase_config !== 'undefined') firebaseConfig = typeof window.__firebase_config === 'string' ? JSON.parse(window.__firebase_config) : window.__firebase_config; } catch(e) { firebaseConfig = {}; }
 
-		const AdminRequests = ({ onBack }) => {
-			const [requests, setRequests] = useState([]);
-			useEffect(()=>{ let mounted=true; (async ()=>{
-				if (useFirebase && fb.getDocs) {
-					const col = fb.collection(fbDb, `/artifacts/${appId}/public/data/requests`);
-					const snap = await fb.getDocs(col);
-					const list=[]; snap.forEach(d=>list.push({id:d.id, ...d.data()})); if(mounted) setRequests(list);
-				} else {
-					const key = `mock_requests_${appId}`; const list = JSON.parse(localStorage.getItem(key)||'[]'); if(mounted) setRequests(list.map((r,i)=>({id:'local-'+i, ...r}))); 
-				}
-			})(); return ()=>{mounted=false}; },[]);
+        const { useState, useEffect } = React;
 
-			const markResolved = async (id)=>{
-				if (!useFirebase) {
-					const key = `mock_requests_${appId}`; const list = JSON.parse(localStorage.getItem(key)||'[]'); const updated = list.map((r,i)=> i===parseInt(id.replace('local-','')) ? Object.assign({}, r, { status:'resolved' }) : r); localStorage.setItem(key, JSON.stringify(updated)); setRequests(updated); return;
-				}
-				try {
-					const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/requests`, id);
-					await fb.updateDoc(ref, { status: 'resolved' });
-					setRequests(requests.map(r=> r.id===id ? Object.assign({}, r, { status:'resolved' }) : r));
-				} catch(e){ console.error(e); }
-			};
+        // Install a global error hook early so runtime errors render a message instead of a white screen
+        window.addEventListener('error', (ev) => {
+            try {
+                const root = document.getElementById('root');
+                if (root) root.innerHTML = `<div style="padding:24px;font-family:Inter,system-ui;color:#b91c1c;background:#fff1f2;">\n<h2 style=\"margin:0 0 8px;\">App error</h2>\n<pre style=\"white-space:pre-wrap;word-break:break-word;\">${(ev && ev.error && ev.error.stack) || ev.message || 'Unknown error'}</pre>\n</div>`;
+            } catch(e) { console.error('render error', e); }
+        });
+        window.addEventListener('unhandledrejection', (ev) => {
+            try {
+                const root = document.getElementById('root');
+                if (root) root.innerHTML = `<div style="padding:24px;font-family:Inter,system-ui;color:#b91c1c;background:#fff1f2;">\n<h2 style=\"margin:0 0 8px;\">Unhandled promise rejection</h2>\n<pre style=\"white-space:pre-wrap;word-break:break-word;\">${(ev && ev.reason && (ev.reason.stack||ev.reason.message)) || JSON.stringify(ev) }</pre>\n</div>`;
+            } catch(e) { console.error('render rejection error', e); }
+        });
 
-			return (
-				<div className="p-6 max-w-4xl mx-auto">
-					<div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Game Requests</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
-					{requests.length===0 && <div className="p-4 bg-yellow-50">No requests</div>}
-					{requests.map(r=> (
-						<div key={r.id} className="p-3 bg-white rounded shadow flex justify-between items-center mb-2">
-							<div>
-								<div className="font-semibold">{r.title}</div>
-								<div className="text-sm text-gray-600">by {r.requestedBy || r.requesterId || 'unknown'}</div>
-								<div className="text-sm text-gray-700">{r.details}</div>
-							</div>
-							<div>
-								<div className="mb-2">{r.status || 'open'}</div>
-								<button className="px-3 py-1 bg-green-600 text-white rounded mr-2">Add Game</button>
-								<button className="px-3 py-1 bg-gray-200 rounded" onClick={()=>markResolved(r.id)}>Resolve</button>
-							</div>
-						</div>
-					))}
-				</div>
-			);
-		};
-		// short id used by this app for Firestore paths
-		window.__app_id = 'wiiizzz786games';
-	</script>
+        // Icon helper
+        const getIcon = (name) => {
+            if (window.lucide && window.lucide[name]) return window.lucide[name];
+            return ({ className = '', ...props }) => React.createElement('span', { className: `inline-block ${className}`, ...props }, '[icon]');
+        };
 
-	<!-- Early Firebase initializer: if you added window.__firebase_config, initialize the app now and expose app/auth/db on window -->
-	<script>
-		(function(){
-			try {
-				const cfg = window.__firebase_config || null;
-				if (!cfg) { console.log('No window.__firebase_config found; skipping early firebase initialize.'); return; }
-				if (!window.firebase || !window.firebase.initializeApp) { console.warn('Firebase SDK not available yet; ensure the module script loaded.'); return; }
-				// initialize app and attach to window so the app code can reuse the same instance
-				try {
-					const app = window.firebase.initializeApp(cfg);
-					window.__firebase_app = app;
-					window.__firebase_auth = window.firebase.getAuth ? window.firebase.getAuth(app) : null;
-					window.__firebase_db = window.firebase.getFirestore ? window.firebase.getFirestore(app) : null;
-					window.__fb_ready = true;
-					console.log('Firebase initialized (early):', !!window.__firebase_app);
-				} catch (e) {
-					console.warn('Early firebase initializeApp failed:', e && e.message ? e.message : e);
-				}
-			} catch (err) { console.error('Early firebase init wrapper error', err); }
-		})();
-	</script>
+        const RefreshCw = getIcon('RefreshCw');
+        const LogIn = getIcon('LogIn');
+        const UserPlus = getIcon('UserPlus');
+        const Lock = getIcon('Lock');
+        const CheckCircle = getIcon('CheckCircle');
+        const UploadCloud = getIcon('UploadCloud');
+        const Code = getIcon('Code');
+        const Settings = getIcon('Settings');
+        const ArrowLeft = getIcon('ArrowLeft');
+        const AlertTriangle = getIcon('AlertTriangle');
+        const Key = getIcon('Key');
 
-	<!-- The React App Logic (Transpiled by Babel) -->
-	<script type="text/babel">
-		// Defensive app: supports real Firebase when a config is provided via window.__firebase_config
-		const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-		let firebaseConfig = {};
-		try { if (typeof window.__firebase_config !== 'undefined') firebaseConfig = typeof window.__firebase_config === 'string' ? JSON.parse(window.__firebase_config) : window.__firebase_config; } catch(e) { firebaseConfig = {}; }
+        // Base64 helpers
+        const encodeBase64 = (s) => { try { return btoa(unescape(encodeURIComponent(s))); } catch(e){ return ''; } };
+        const decodeBase64 = (s) => { try { return decodeURIComponent(escape(atob(s))); } catch(e){ return 'Invalid base64'; } };
 
-		const { useState, useEffect } = React;
+        // Firebase wrappers (use real Firebase if available, otherwise mocks)
+        const fb = window.firebase || null;
+        let useFirebase = false;
+        let fbAuth = null, fbDb = null;
 
-		// Install a global error hook early so runtime errors render a message instead of a white screen
-		window.addEventListener('error', (ev) => {
-			try {
-				const root = document.getElementById('root');
-				if (root) root.innerHTML = `<div style="padding:24px;font-family:Inter,system-ui;color:#b91c1c;background:#fff1f2;">\n<h2 style=\"margin:0 0 8px;\">App error</h2>\n<pre style=\"white-space:pre-wrap;word-break:break-word;\">${(ev && ev.error && ev.error.stack) || ev.message || 'Unknown error'}</pre>\n</div>`;
-			} catch(e) { console.error('render error', e); }
-		});
-		window.addEventListener('unhandledrejection', (ev) => {
-			try {
-				const root = document.getElementById('root');
-				if (root) root.innerHTML = `<div style="padding:24px;font-family:Inter,system-ui;color:#b91c1c;background:#fff1f2;">\n<h2 style=\"margin:0 0 8px;\">Unhandled promise rejection</h2>\n<pre style=\"white-space:pre-wrap;word-break:break-word;\">${(ev && ev.reason && (ev.reason.stack||ev.reason.message)) || JSON.stringify(ev) }</pre>\n</div>`;
-			} catch(e) { console.error('render rejection error', e); }
-		});
+        if (fb && Object.keys(firebaseConfig).length) {
+            try {
+                // We use the existing instance initialized by the early script
+                fbAuth = window.__firebase_auth;
+                fbDb = window.__firebase_db;
+                useFirebase = !!(fbAuth && fbDb);
+                console.log('Firebase ready status in React:', useFirebase);
+            } catch (err) {
+                console.warn('Firebase init failed inside React:', err.message);
+            }
+        }
 
-		// Icon helper
-		const getIcon = (name) => {
-			if (window.lucide && window.lucide[name]) return window.lucide[name];
-			return ({ className = '', ...props }) => React.createElement('span', { className: `inline-block ${className}`, ...props }, '[icon]');
-		};
+        // Helper: sign in anonymously (returns current user)
+        const ensureAuth = async () => {
+            if (useFirebase && fb && fb.signInAnonymously) {
+                try {
+                    await fb.signInAnonymously(fbAuth);
+                    return fbAuth.currentUser;
+                } catch (e) {
+                    console.warn('Anon sign-in failed:', e.message);
+                }
+            }
+            return { uid: 'local-' + Math.random().toString(36).slice(2,8) };
+        };
 
-		const RefreshCw = getIcon('RefreshCw');
-		const LogIn = getIcon('LogIn');
-		const UserPlus = getIcon('UserPlus');
-		const Lock = getIcon('Lock');
-		const CheckCircle = getIcon('CheckCircle');
-		const UploadCloud = getIcon('UploadCloud');
-		const Code = getIcon('Code');
-		const Settings = getIcon('Settings');
-		const ArrowLeft = getIcon('ArrowLeft');
-		const AlertTriangle = getIcon('AlertTriangle');
-		const Key = getIcon('Key');
+        const findUserByUsername = async (username) => {
+            if (!useFirebase) return { found: false };
+            try {
+                const usersRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/users`);
+                const q = fb.query(usersRef, fb.where('username', '==', username));
+                const snap = await fb.getDocs(q);
+                if (!snap.empty) return { found: true, doc: snap.docs[0] };
+            } catch (e) { console.warn('findUser error', e.message); }
+            return { found: false };
+        };
 
-		// Base64 helpers
-		const encodeBase64 = (s) => { try { return btoa(unescape(encodeURIComponent(s))); } catch(e){ return ''; } };
-		const decodeBase64 = (s) => { try { return decodeURIComponent(escape(atob(s))); } catch(e){ return 'Invalid base64'; } };
+        const createOrUpdateUser = async (uid, payload) => {
+            if (!useFirebase) return true;
+            try {
+                const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/users`, uid);
+                await fb.setDoc(ref, payload, { merge: true });
+                return true;
+            } catch (e) { console.error('set user error', e); return false; }
+        };
 
-		// Firebase wrappers (use real Firebase if available, otherwise mocks)
-		const fb = window.firebase || null;
-		let useFirebase = false;
-		let fbAuth = null, fbDb = null;
+        const addGameDoc = async (payload) => {
+            // If Firebase isn't configured, persist to localStorage as a mock so the UI works locally
+            if (!useFirebase) {
+                try {
+                    const key = `mock_games_${appId}`;
+                    const list = JSON.parse(localStorage.getItem(key) || '[]');
+                    list.push(Object.assign({}, payload, { _localSavedAt: Date.now() }));
+                    localStorage.setItem(key, JSON.stringify(list));
+                    console.warn('addGameDoc: saved to localStorage mock:', payload);
+                    return { ok: true, mock: true };
+                } catch (e) {
+                    return { ok: false, error: 'No firebase and localStorage failed: ' + (e && e.message) };
+                }
+            }
+            try {
+                const gamesRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/games`);
+                await fb.addDoc(gamesRef, payload);
+                return { ok: true };
+            } catch (e) { return { ok: false, error: e.message }; }
+        };
 
-		if (fb && Object.keys(firebaseConfig).length) {
-			try {
-				const app = fb.initializeApp(firebaseConfig);
-				fbAuth = fb.getAuth ? fb.getAuth(app) : null;
-				fbDb = fb.getFirestore ? fb.getFirestore(app) : null;
-				useFirebase = !!(fbAuth && fbDb);
-				console.log('Firebase initialized');
-			} catch (err) {
-				console.warn('Firebase init failed:', err.message);
-			}
-		}
+        const addRequestDoc = async (payload) => {
+            if (!useFirebase) {
+                try {
+                    const key = `mock_requests_${appId}`;
+                    const list = JSON.parse(localStorage.getItem(key) || '[]');
+                    list.push(Object.assign({}, payload, { _localSavedAt: Date.now() }));
+                    localStorage.setItem(key, JSON.stringify(list));
+                    console.warn('addRequestDoc: saved to localStorage mock:', payload);
+                    return { ok: true, mock: true };
+                } catch (e) { return { ok: false, error: e.message }; }
+            }
+            try {
+                const reqRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/requests`);
+                await fb.addDoc(reqRef, Object.assign({}, payload, { createdAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), status: 'open' }));
+                return { ok: true };
+            } catch (e) { return { ok: false, error: e.message }; }
+        };
 
-		// Helper: sign in anonymously (returns current user)
-		const ensureAuth = async () => {
-			if (useFirebase && fb && fb.signInAnonymously) {
-				try {
-					await fb.signInAnonymously(fbAuth);
-					return fbAuth.currentUser;
-				} catch (e) {
-					console.warn('Anon sign-in failed:', e.message);
-				}
-			}
-			return { uid: 'local-' + Math.random().toString(36).slice(2,8) };
-		};
+        // Save/load progress for a given gameId tied to a user
+        const saveProgress = async (gameId, uid, progress) => {
+            if (!gameId || !uid) return { ok: false, error: 'missing gameId or uid' };
+            const payload = { gameId, userId: uid, progress, updatedAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now() };
+            if (!useFirebase) {
+                try {
+                    const key = `progress_${appId}_${uid}_${gameId}`;
+                    localStorage.setItem(key, JSON.stringify(payload));
+                    return { ok: true, mock: true };
+                } catch (e) { return { ok: false, error: e.message }; }
+            }
+            try {
+                const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/progress`, `${uid}_${gameId}`);
+                await fb.setDoc(ref, payload, { merge: true });
+                return { ok: true };
+            } catch (e) { return { ok: false, error: e.message }; }
+        };
 
-		const findUserByUsername = async (username) => {
-			if (!useFirebase) return { found: false };
-			try {
-				const usersRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/users`);
-				const q = fb.query(usersRef, fb.where('username', '==', username));
-				const snap = await fb.getDocs(q);
-				if (!snap.empty) return { found: true, doc: snap.docs[0] };
-			} catch (e) { console.warn('findUser error', e.message); }
-			return { found: false };
-		};
+        const loadProgress = async (gameId, uid) => {
+            if (!gameId || !uid) return null;
+            if (!useFirebase) {
+                const key = `progress_${appId}_${uid}_${gameId}`;
+                try { return JSON.parse(localStorage.getItem(key)); } catch(e){ return null; }
+            }
+            try {
+                const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/progress`, `${uid}_${gameId}`);
+                const snap = await fb.getDoc(ref);
+                if (snap && snap.exists) return snap.data();
+                return null;
+            } catch(e){ console.error('loadProgress', e); return null; }
+        };
 
-		const createOrUpdateUser = async (uid, payload) => {
-			if (!useFirebase) return true;
-			try {
-				const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/users`, uid);
-				await fb.setDoc(ref, payload, { merge: true });
-				return true;
-			} catch (e) { console.error('set user error', e); return false; }
-		};
+        // AuthScreen using Firebase when available
+        const AuthScreen = ({ onAuth }) => {
+            const [isLogin, setIsLogin] = useState(true);
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [status, setStatus] = useState('');
 
-		const addGameDoc = async (payload) => {
-			// If Firebase isn't configured, persist to localStorage as a mock so the UI works locally
-			if (!useFirebase) {
-				try {
-					const key = `mock_games_${appId}`;
-					const list = JSON.parse(localStorage.getItem(key) || '[]');
-					list.push(Object.assign({}, payload, { _localSavedAt: Date.now() }));
-					localStorage.setItem(key, JSON.stringify(list));
-					console.warn('addGameDoc: saved to localStorage mock:', payload);
-					return { ok: true, mock: true };
-				} catch (e) {
-					return { ok: false, error: 'No firebase and localStorage failed: ' + (e && e.message) };
-				}
-			}
-			try {
-				const gamesRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/games`);
-				await fb.addDoc(gamesRef, payload);
-				return { ok: true };
-			} catch (e) { return { ok: false, error: e.message }; }
-		};
+            const HARDCODED_ADMIN_USERNAME = 'hkh';
+            const HARDCODED_ADMIN_PASSWORD = 'player9563';
 
-		const addRequestDoc = async (payload) => {
-			if (!useFirebase) {
-				try {
-					const key = `mock_requests_${appId}`;
-					const list = JSON.parse(localStorage.getItem(key) || '[]');
-					list.push(Object.assign({}, payload, { _localSavedAt: Date.now() }));
-					localStorage.setItem(key, JSON.stringify(list));
-					console.warn('addRequestDoc: saved to localStorage mock:', payload);
-					return { ok: true, mock: true };
-				} catch (e) { return { ok: false, error: e.message }; }
-			}
-			try {
-				const reqRef = fb.collection(fbDb, `/artifacts/${appId}/public/data/requests`);
-				await fb.addDoc(reqRef, Object.assign({}, payload, { createdAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), status: 'open' }));
-				return { ok: true };
-			} catch (e) { return { ok: false, error: e.message }; }
-		};
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setStatus('');
+                if (username.length < 3 || password.length < 4) { setStatus('Username 3+ and password 4+ chars'); return; }
+                const encodedPassword = encodeBase64(password);
+                const currentUser = await ensureAuth();
 
-		// Save/load progress for a given gameId tied to a user
-		const saveProgress = async (gameId, uid, progress) => {
-			if (!gameId || !uid) return { ok: false, error: 'missing gameId or uid' };
-			const payload = { gameId, userId: uid, progress, updatedAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now() };
-			if (!useFirebase) {
-				try {
-					const key = `progress_${appId}_${uid}_${gameId}`;
-					localStorage.setItem(key, JSON.stringify(payload));
-					return { ok: true, mock: true };
-				} catch (e) { return { ok: false, error: e.message }; }
-			}
-			try {
-				const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/progress`, `${uid}_${gameId}`);
-				await fb.setDoc(ref, payload, { merge: true });
-				return { ok: true };
-			} catch (e) { return { ok: false, error: e.message }; }
-		};
+                // Admin shortcut
+                if (isLogin && username === HARDCODED_ADMIN_USERNAME && encodedPassword === encodeBase64(HARDCODED_ADMIN_PASSWORD)) {
+                    await createOrUpdateUser(currentUser.uid, { username: HARDCODED_ADMIN_USERNAME, role: 'admin', lastActivity: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword });
+                    onAuth({ uid: currentUser.uid, username: HARDCODED_ADMIN_USERNAME, role: 'admin', encodedPassword });
+                    return;
+                }
 
-		const loadProgress = async (gameId, uid) => {
-			if (!gameId || !uid) return null;
-			if (!useFirebase) {
-				const key = `progress_${appId}_${uid}_${gameId}`;
-				try { return JSON.parse(localStorage.getItem(key)); } catch(e){ return null; }
-			}
-			try {
-				const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/progress`, `${uid}_${gameId}`);
-				const snap = await fb.getDoc(ref);
-				if (snap && snap.exists) return snap.data();
-				return null;
-			} catch(e){ console.error('loadProgress', e); return null; }
-		};
+                // When using Firebase, check existing users
+                if (useFirebase) {
+                    try {
+                        const found = await findUserByUsername(username);
+                        if (isLogin) {
+                            if (!found.found) { 
+                                // LOGIN FAILED: Account doesn't exist
+                                setStatus('Account not found. Please register.'); 
+                                return; 
+                            }
+                            const data = found.doc.data();
+                            if (data.encodedPassword !== encodedPassword) { setStatus('Incorrect password'); return; }
+                            // map profile under current UID
+                            await createOrUpdateUser(currentUser.uid, { username: data.username, role: data.role || 'player', lastActivity: fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword: data.encodedPassword });
+                            onAuth({ uid: currentUser.uid, username: data.username, role: data.role || 'player', encodedPassword: data.encodedPassword });
+                            return;
+                        } else {
+                            // REGISTER
+                            if (found.found) { 
+                                // REGISTER FAILED: Account already exists
+                                setStatus('Username already taken. Please try to log in.'); 
+                                return; 
+                            }
+                            await createOrUpdateUser(currentUser.uid, { username, role: 'player', lastActivity: fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword });
+                            onAuth({ uid: currentUser.uid, username, role: 'player', encodedPassword });
+                            return;
+                        }
+                    } catch (err) { console.error('Auth error', err); setStatus('Auth failed: ' + err.message); }
+                } else {
+                    // Fallback mock behavior: accept any credentials
+                    setStatus("Warning: Firebase not active. Logging in with mock data.");
+                    await createOrUpdateUser(currentUser.uid, { username, role: 'player', lastActivity: Date.now(), userId: currentUser.uid, encodedPassword });
+                    onAuth({ uid: currentUser.uid, username, role: 'player', encodedPassword });
+                }
+            };
 
-		// AuthScreen using Firebase when available
-		const AuthScreen = ({ onAuth }) => {
-			const [isLogin, setIsLogin] = useState(true);
-			const [username, setUsername] = useState('');
-			const [password, setPassword] = useState('');
-			const [status, setStatus] = useState('');
+            return (
+                <div className="min-h-screen flex items-center justify-center p-6">
+                    <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg">
+                        <h2 className="text-2xl font-bold mb-4">{isLogin ? 'Sign In' : 'Register'}</h2>
+                        {status && <div className="mb-3 p-2 bg-yellow-50 text-yellow-900 rounded">{status}</div>}
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <input className="w-full p-3 border rounded" placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} />
+                            <input type="password" className="w-full p-3 border rounded" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} />
+                            <button className="w-full bg-indigo-600 text-white p-3 rounded">{isLogin ? 'Log In' : 'Register'}</button>
+                        </form>
+                        <div className="mt-4 text-sm text-center">
+                            <button className="text-indigo-600" onClick={()=>{setIsLogin(!isLogin); setStatus('');}}>{isLogin ? 'Need an account? Register' : 'Have an account? Sign in'}</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
 
-			const HARDCODED_ADMIN_USERNAME = 'hkh';
-			const HARDCODED_ADMIN_PASSWORD = 'player9563';
+        const RequestGame = ({ onBack, user }) => {
+            const [title, setTitle] = useState('');
+            const [details, setDetails] = useState('');
+            const [status, setStatus] = useState('');
+            const handleSubmit = async (e) => {
+                e.preventDefault(); setStatus('');
+                if (!title) { setStatus('Provide a title'); return; }
+                const payload = { title, details, requestedBy: user ? user.username || user.uid : 'anon', requesterId: user?user.uid:null };
+                const res = await addRequestDoc(payload);
+                if (res.ok) { setStatus('Request submitted'); setTitle(''); setDetails(''); } else setStatus('Failed: '+(res.error||'unknown'));
+            };
 
-			const handleSubmit = async (e) => {
-				e.preventDefault();
-				setStatus('');
-				if (username.length < 3 || password.length < 4) { setStatus('Username 3+ and password 4+ chars'); return; }
-				const encodedPassword = encodeBase64(password);
-				const currentUser = await ensureAuth();
+            return (
+                <div className="p-6 max-w-2xl mx-auto">
+                    <div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Request a Game</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
+                    <form onSubmit={handleSubmit} className="space-y-3 bg-white p-4 rounded shadow">
+                        {status && <div className="p-2 bg-yellow-50">{status}</div>}
+                        <input className="w-full p-3 border" placeholder="Game title" value={title} onChange={e=>setTitle(e.target.value)} />
+                        <textarea rows={6} className="w-full p-3 border" placeholder="Details / why you want it" value={details} onChange={e=>setDetails(e.target.value)} />
+                        <button className="px-4 py-2 bg-indigo-600 text-white rounded" type="submit">Send Request</button>
+                    </form>
+                </div>
+            );
+        };
 
-				// Admin shortcut
-				if (isLogin && username === HARDCODED_ADMIN_USERNAME && encodedPassword === encodeBase64(HARDCODED_ADMIN_PASSWORD)) {
-					await createOrUpdateUser(currentUser.uid, { username: HARDCODED_ADMIN_USERNAME, role: 'admin', lastActivity: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword });
-					onAuth({ uid: currentUser.uid, username: HARDCODED_ADMIN_USERNAME, role: 'admin', encodedPassword });
-					return;
-				}
+        const AdminRequests = ({ onBack }) => {
+            const [requests, setRequests] = useState([]);
+            useEffect(()=>{ let mounted=true; (async ()=>{
+                if (useFirebase && fb.getDocs) {
+                    const col = fb.collection(fbDb, `/artifacts/${appId}/public/data/requests`);
+                    const snap = await fb.getDocs(col);
+                    const list=[]; snap.forEach(d=>list.push({id:d.id, ...d.data()})); if(mounted) setRequests(list);
+                } else {
+                    const key = `mock_requests_${appId}`; const list = JSON.parse(localStorage.getItem(key)||'[]'); if(mounted) setRequests(list.map((r,i)=>({id:'local-'+i, ...r}))); 
+                }
+            })(); return ()=>{mounted=false}; },[]);
 
-				// When using Firebase, check existing users
-				if (useFirebase) {
-					try {
-						const found = await findUserByUsername(username);
-						if (isLogin) {
-							if (!found.found) { setStatus('Account not found. Please register.'); return; }
-							const data = found.doc.data();
-							if (data.encodedPassword !== encodedPassword) { setStatus('Incorrect password'); return; }
-							// map profile under current UID
-							await createOrUpdateUser(currentUser.uid, { username: data.username, role: data.role || 'player', lastActivity: fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword: data.encodedPassword });
-							onAuth({ uid: currentUser.uid, username: data.username, role: data.role || 'player', encodedPassword: data.encodedPassword });
-							return;
-						} else {
-							// register
-							if (found.found) { setStatus('Username already taken'); return; }
-							await createOrUpdateUser(currentUser.uid, { username, role: 'player', lastActivity: fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword });
-							onAuth({ uid: currentUser.uid, username, role: 'player', encodedPassword });
-							return;
-						}
-					} catch (err) { console.error('Auth error', err); setStatus('Auth failed: ' + err.message); }
-				} else {
-					// Fallback mock behavior: accept any credentials
-					await createOrUpdateUser(currentUser.uid, { username, role: 'player', lastActivity: Date.now(), userId: currentUser.uid, encodedPassword });
-					onAuth({ uid: currentUser.uid, username, role: 'player', encodedPassword });
-				}
-			};
+            const markResolved = async (id)=>{
+                if (!useFirebase) {
+                    const key = `mock_requests_${appId}`; const list = JSON.parse(localStorage.getItem(key)||'[]'); const updated = list.map((r,i)=> i===parseInt(id.replace('local-','')) ? Object.assign({}, r, { status:'resolved' }) : r); localStorage.setItem(key, JSON.stringify(updated)); setRequests(updated); return;
+                }
+                try {
+                    const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/requests`, id);
+                    await fb.updateDoc(ref, { status: 'resolved' });
+                    setRequests(requests.map(r=> r.id===id ? Object.assign({}, r, { status:'resolved' }) : r));
+                } catch(e){ console.error(e); }
+            };
 
-			return (
-				<div className="min-h-screen flex items-center justify-center p-6">
-					<div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg">
-						<h2 className="text-2xl font-bold mb-4">{isLogin ? 'Sign In' : 'Register'}</h2>
-						{status && <div className="mb-3 p-2 bg-yellow-50 text-yellow-900 rounded">{status}</div>}
-						<form onSubmit={handleSubmit} className="space-y-4">
-							<input className="w-full p-3 border rounded" placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} />
-							<input type="password" className="w-full p-3 border rounded" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} />
-							<button className="w-full bg-indigo-600 text-white p-3 rounded">{isLogin ? 'Log In' : 'Register'}</button>
-						</form>
-						<div className="mt-4 text-sm text-center">
-							<button className="text-indigo-600" onClick={()=>{setIsLogin(!isLogin); setStatus('');}}>{isLogin ? 'Need an account? Register' : 'Have an account? Sign in'}</button>
-						</div>
-					</div>
-				</div>
-			);
-		};
+            return (
+                <div className="p-6 max-w-4xl mx-auto">
+                    <div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Game Requests</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
+                    {requests.length===0 && <div className="p-4 bg-yellow-50">No requests</div>}
+                    {requests.map(r=> (
+                        <div key={r.id} className="p-3 bg-white rounded shadow flex justify-between items-center mb-2">
+                            <div>
+                                <div className="font-semibold">{r.title}</div>
+                                <div className="text-sm text-gray-600">by {r.requestedBy || r.requesterId || 'unknown'}</div>
+                                <div className="text-sm text-gray-700">{r.details}</div>
+                            </div>
+                            <div>
+                                <div className="mb-2">{r.status || 'open'}</div>
+                                <button className="px-3 py-1 bg-green-600 text-white rounded mr-2">Add Game</button>
+                                <button className="px-3 py-1 bg-gray-200 rounded" onClick={()=>markResolved(r.id)}>Resolve</button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+        
+        const EncoderDecoder = ({ onBack }) => {
+            const [input, setInput] = useState('');
+            const [output, setOutput] = useState('');
+            const [mode, setMode] = useState('encode');
+            const handleRun = ()=> setOutput(mode==='encode'?encodeBase64(input):decodeBase64(input));
+            return (
+                <div className="p-6">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h3 className="text-xl font-bold">Content Encoder & Decoder</h3>
+                        <button className="text-sm text-indigo-600" onClick={onBack}>Back</button>
+                    </div>
+                    <div className="space-y-3">
+                        <textarea rows={8} className="w-full p-3 border" value={input} onChange={e=>setInput(e.target.value)} placeholder={mode==='encode' ? 'Paste HTML here...' : 'Paste base64 here...'} />
+                        <div className="flex gap-2">
+                            <button className="px-4 py-2 bg-purple-600 text-white rounded" onClick={()=>{ setMode('encode'); setOutput('');}}>Encode</button>
+                            <button className="px-4 py-2 bg-gray-200 rounded" onClick={()=>{ setMode('decode'); setOutput('');}}>Decode</button>
+                            <button className="px-4 py-2 bg-indigo-600 text-white rounded" onClick={handleRun}>Run</button>
+                        </div>
+                        <textarea rows={6} className="w-full p-3 border bg-gray-50" value={output} readOnly />
+                    </div>
+                </div>
+            );
+        };
 
-		const EncoderDecoder = ({ onBack }) => {
-			const [input, setInput] = useState('');
-			const [output, setOutput] = useState('');
-			const [mode, setMode] = useState('encode');
-			const handleRun = ()=> setOutput(mode==='encode'?encodeBase64(input):decodeBase64(input));
-			return (
-				<div className="p-6">
-					<div className="mb-4 flex items-center justify-between">
-						<h3 className="text-xl font-bold">Content Encoder & Decoder</h3>
-						<button className="text-sm text-indigo-600" onClick={onBack}>Back</button>
-					</div>
-					<div className="space-y-3">
-						<textarea rows={8} className="w-full p-3 border" value={input} onChange={e=>setInput(e.target.value)} placeholder={mode==='encode' ? 'Paste HTML here...' : 'Paste base64 here...'} />
-						<div className="flex gap-2">
-							<button className="px-4 py-2 bg-purple-600 text-white rounded" onClick={()=>{ setMode('encode'); setOutput('');}}>Encode</button>
-							<button className="px-4 py-2 bg-gray-200 rounded" onClick={()=>{ setMode('decode'); setOutput('');}}>Decode</button>
-							<button className="px-4 py-2 bg-indigo-600 text-white rounded" onClick={handleRun}>Run</button>
-						</div>
-						<textarea rows={6} className="w-full p-3 border bg-gray-50" value={output} readOnly />
-					</div>
-				</div>
-			);
-		};
+        const AdminPanel = ({ user, db, onBack }) => {
+            const [title, setTitle] = useState('');
+            const [encodedGameString, setEncodedGameString] = useState('');
+            const [message, setMessage] = useState('');
 
-		const AdminPanel = ({ user, db, onBack }) => {
-			const [title, setTitle] = useState('');
-			const [encodedGameString, setEncodedGameString] = useState('');
-			const [message, setMessage] = useState('');
+            const handleAddGame = async (e) => {
+                e.preventDefault(); setMessage('');
+                if (!title || !encodedGameString) { setMessage('Provide title and Base64 string'); return; }
+                if (encodedGameString.length < 10) { setMessage('String too short'); return; }
+                const payload = { title, content: encodedGameString, addedBy: user.username || 'unknown', userId: user.uid, createdAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now() };
+                const res = await addGameDoc(payload);
+                if (res.ok) { setMessage('Game added'); setTitle(''); setEncodedGameString(''); } else { setMessage('Failed: ' + (res.error||'unknown')); }
+            };
 
-			const handleAddGame = async (e) => {
-				e.preventDefault(); setMessage('');
-				if (!title || !encodedGameString) { setMessage('Provide title and Base64 string'); return; }
-				if (encodedGameString.length < 10) { setMessage('String too short'); return; }
-				const payload = { title, content: encodedGameString, addedBy: user.username || 'unknown', userId: user.uid, createdAt: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now() };
-				const res = await addGameDoc(payload);
-				if (res.ok) { setMessage('Game added'); setTitle(''); setEncodedGameString(''); } else { setMessage('Failed: ' + (res.error||'unknown')); }
-			};
+            return (
+                <div className="p-6 max-w-3xl mx-auto">
+                    <div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Admin Panel</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
+                    <form onSubmit={handleAddGame} className="space-y-4 bg-white p-4 rounded shadow">
+                        {message && <div className="p-2 bg-yellow-50 rounded">{message}</div>}
+                        <input className="w-full p-3 border" placeholder="Game title" value={title} onChange={e=>setTitle(e.target.value)} />
+                        <textarea rows={6} className="w-full p-3 border" placeholder="Base64 game string" value={encodedGameString} onChange={e=>setEncodedGameString(e.target.value)} />
+                        <div className="flex gap-2">
+                            <button className="px-4 py-2 bg-red-500 text-white rounded" type="submit">Publish Game</button>
+                        </div>
+                    </form>
+                </div>
+            );
+        };
 
-			return (
-				<div className="p-6 max-w-3xl mx-auto">
-					<div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Admin Panel</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
-					<form onSubmit={handleAddGame} className="space-y-4 bg-white p-4 rounded shadow">
-						{message && <div className="p-2 bg-yellow-50 rounded">{message}</div>}
-						<input className="w-full p-3 border" placeholder="Game title" value={title} onChange={e=>setTitle(e.target.value)} />
-						<textarea rows={6} className="w-full p-3 border" placeholder="Base64 game string" value={encodedGameString} onChange={e=>setEncodedGameString(e.target.value)} />
-						<div className="flex gap-2">
-							<button className="px-4 py-2 bg-red-500 text-white rounded" type="submit">Publish Game</button>
-						</div>
-					</form>
-				</div>
-			);
-		};
+        const ViewGames = ({ onBack, user }) => {
+            const [games, setGames] = useState([]);
+            const [loading, setLoading] = useState(true);
 
-		const ViewGames = ({ onBack, user }) => {
-			const [games, setGames] = useState([]);
-			const [loading, setLoading] = useState(true);
+            useEffect(()=>{
+                let mounted = true;
+                (async ()=>{
+                    setLoading(true);
+                    try {
+                        if (useFirebase && fb && fb.getDocs) {
+                            const db = fbDb;
+                            const col = fb.collection(db, `/artifacts/${appId}/public/data/games`);
+                            const snap = await fb.getDocs(col);
+                            const list = [];
+                            snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+                            if (mounted) setGames(list);
+                        } else {
+                            const key = `mock_games_${appId}`;
+                            const list = JSON.parse(localStorage.getItem(key) || '[]');
+                            if (mounted) setGames(list.map((g,i)=>({ id: 'local-'+i, ...g })));
+                        }
+                    } catch(e){ console.error('load games', e); }
+                    setLoading(false);
+                })();
+                return ()=>{ mounted=false };
+            },[]);
 
-			useEffect(()=>{
-				let mounted = true;
-				(async ()=>{
-					setLoading(true);
-					try {
-						if (useFirebase && fb && fb.getDocs) {
-							const db = fbDb;
-							const col = fb.collection(db, `/artifacts/${appId}/public/data/games`);
-							const snap = await fb.getDocs(col);
-							const list = [];
-							snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-							if (mounted) setGames(list);
-						} else {
-							const key = `mock_games_${appId}`;
-							const list = JSON.parse(localStorage.getItem(key) || '[]');
-							if (mounted) setGames(list.map((g,i)=>({ id: 'local-'+i, ...g })));
-						}
-					} catch(e){ console.error('load games', e); }
-					setLoading(false);
-				})();
-				return ()=>{ mounted=false };
-			},[]);
+            const handlePlay = (g) => {
+                try {
+                    const decoded = decodeBase64(g.content || '');
+                    if (!decoded || decoded === 'Invalid base64') return alert('Content not playable or not base64 HTML');
+                    const blob = new Blob([decoded], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, '_blank');
+                } catch(e){ alert('Play failed: '+e.message); }
+            };
 
-			const handlePlay = (g) => {
-				try {
-					const decoded = decodeBase64(g.content || '');
-					if (!decoded || decoded === 'Invalid base64') return alert('Content not playable or not base64 HTML');
-					const blob = new Blob([decoded], { type: 'text/html' });
-					const url = URL.createObjectURL(blob);
-					window.open(url, '_blank');
-				} catch(e){ alert('Play failed: '+e.message); }
-			};
+            // Autosave: when user plays, start an interval to autosave mock progress every 10s
+            const startAutoSave = (g) => {
+                if (!user || !user.uid) return;
+                let interval = setInterval(async ()=>{
+                    const mockProgress = { ts: Date.now(), position: Math.floor(Math.random()*100) }; // replace with real progress
+                    await saveProgress(g.id, user.uid, mockProgress);
+                    console.log('autosaved', g.id);
+                }, 10000);
+                // stop on page unload
+                window.addEventListener('beforeunload', ()=> clearInterval(interval));
+            };
 
-			// Autosave: when user plays, start an interval to autosave mock progress every 10s
-			const startAutoSave = (g) => {
-				if (!user || !user.uid) return;
-				let interval = setInterval(async ()=>{
-					const mockProgress = { ts: Date.now(), position: Math.floor(Math.random()*100) }; // replace with real progress
-					await saveProgress(g.id, user.uid, mockProgress);
-					console.log('autosaved', g.id);
-				}, 10000);
-				// stop on page unload
-				window.addEventListener('beforeunload', ()=> clearInterval(interval));
-			};
+            const handleDownload = (g) => {
+                const blob = new Blob([g.content||''], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = (g.title||'game') + '.b64'; a.click(); URL.revokeObjectURL(url);
+            };
 
-			const handleDownload = (g) => {
-				const blob = new Blob([g.content||''], { type: 'text/plain' });
-				const url = URL.createObjectURL(blob);
-				const a = document.createElement('a'); a.href = url; a.download = (g.title||'game') + '.b64'; a.click(); URL.revokeObjectURL(url);
-			};
+            return (
+                <div className="p-6 max-w-4xl mx-auto">
+                    <div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Available Games</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
+                    {loading ? <div>Loading…</div> : (
+                        <div className="space-y-3">
+                            {games.length === 0 && <div className="p-4 bg-yellow-50">No games found.</div>}
+                            {games.map(g=> (
+                                <div key={g.id} className="p-3 bg-white rounded shadow flex items-start justify-between">
+                                    <div>
+                                        <div className="font-semibold">{g.title || 'Untitled'}</div>
+                                        <div className="text-sm text-gray-600">by {g.addedBy || g.userId || 'unknown'}</div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button className="px-3 py-1 bg-green-600 text-white rounded" onClick={()=>{ handlePlay(g); startAutoSave(g); }}>Play</button>
+                                        <button className="px-3 py-1 bg-gray-200 rounded" onClick={()=>handleDownload(g)}>Download</button>
+                                        {user && user.uid && (
+                                            <>
+                                                <button className="px-3 py-1 bg-blue-600" onClick={async ()=>console.log('Progress:', await loadProgress(g.id, user.uid))}>Progress</button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
 
-			return (
-				<div className="p-6 max-w-4xl mx-auto">
-					<div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-bold">Available Games</h2><button onClick={onBack} className="text-indigo-600">Back</button></div>
-					{loading ? <div>Loading…</div> : (
-						<div className="space-y-3">
-							{games.length === 0 && <div className="p-4 bg-yellow-50">No games found.</div>}
-							{games.map(g=> (
-								<div key={g.id} className="p-3 bg-white rounded shadow flex items-start justify-between">
-									<div>
-										<div className="font-semibold">{g.title || 'Untitled'}</div>
-										<div className="text-sm text-gray-600">by {g.addedBy || g.userId || 'unknown'}</div>
-									</div>
-									<div className="flex gap-2">
-										<button className="px-3 py-1 bg-green-600 text-white rounded" onClick={()=>{ handlePlay(g); startAutoSave(g); }}>Play</button>
-										<button className="px-3 py-1 bg-gray-200 rounded" onClick={()=>handleDownload(g)}>Download</button>
-										{user && user.uid && (
-											<>
-												<button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={async()=>{
-													const progress = prompt('Enter progress data (JSON)');
-													if (!progress) return;
-													try { const p = JSON.parse(progress); const res = await saveProgress(g.id, user.uid, p); alert(res.ok ? 'Saved' : 'Save failed: '+(res.error||'unknown')); } catch(e){ alert('Invalid JSON'); }
-												}}>Save progress</button>
-												<button className="px-3 py-1 bg-yellow-500 text-white rounded" onClick={async()=>{ const p = await loadProgress(g.id, user.uid); alert(p ? JSON.stringify(p,null,2) : 'No saved progress'); }}>Load progress</button>
-											</>
-										)}
-									</div>
-								</div>
-							))}
-						</div>
-					)}
-				</div>
-			);
-		};
+        const MainApp = () => {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [view, setView] = useState('home'); // home, games, admin, encoder, request, requests
 
-		const Dashboard = ({ user, onLogout, setRoute }) => (
-			<div className="min-h-screen p-6 bg-gray-50">
-				<div className="max-w-4xl mx-auto">
-					<header className="flex items-center justify-between mb-6">
-						<h1 className="text-2xl font-bold">Arcade Host</h1>
-						<div>
-							<span className="mr-4">{user.username}</span>
-							<button className="px-3 py-1 bg-red-500 text-white rounded" onClick={onLogout}>Sign out</button>
-						</div>
-					</header>
-					<main className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div className="p-4 bg-white rounded shadow">Welcome to the dashboard. Use the tools on the right.</div>
-						<div className="space-y-3">
-							<button className="w-full p-3 bg-blue-600 text-white rounded" onClick={()=>setRoute('view')}>View Games</button>
-							{user && user.role === 'admin' ? (
-								<>
-									<button className="w-full p-3 bg-indigo-600 text-white rounded" onClick={()=>setRoute('encoder')}>Open Encoder/Decoder</button>
-									<button className="w-full p-3 bg-gray-800 text-white rounded" onClick={()=>setRoute('admin')}>Admin Panel</button>
-								</>
-							) : (
-								<div className="text-sm text-gray-600 p-2">Additional tools are available for administrators only.</div>
-							)}
-						</div>
-					</main>
-				</div>
-			</div>
-		);
+            useEffect(() => {
+                // Check if Firebase is available and set the initial user state
+                if (useFirebase && fbAuth) {
+                    const unsubscribe = fb.onAuthStateChanged(fbAuth, async (fbUser) => {
+                        if (fbUser) {
+                            // If a user is signed in (even anonymously), try to fetch their profile
+                            try {
+                                const userRef = fb.doc(fbDb, `/artifacts/${appId}/public/data/users`, fbUser.uid);
+                                const userSnap = await fb.getDoc(userRef);
+                                if (userSnap.exists()) {
+                                    setUser({ uid: fbUser.uid, ...userSnap.data() });
+                                } else {
+                                    // User exists but no profile created (e.g., anonymous user first load)
+                                    setUser(null); 
+                                }
+                            } catch (e) { console.error('Error fetching user profile:', e); setUser(null); }
+                        } else {
+                            setUser(null);
+                        }
+                        setLoading(false);
+                    });
+                    // Cleanup subscription on component unmount
+                    return () => unsubscribe();
+                }
 
-		function App(){
-			const [user, setUser] = useState(null);
-			const [route, setRoute] = useState('auth');
+                // If no Firebase (mock mode), assume logged out
+                setLoading(false);
 
-			useEffect(()=>{ if (user) setRoute('dashboard'); },[user]);
-			const logout = ()=>{ setUser(null); setRoute('auth'); };
+                // Hide the loading placeholder element
+                const loader = document.getElementById('app-loading');
+                if (loader) loader.style.display = 'none';
 
-			if (!user && route === 'auth') return <AuthScreen onAuth={(u)=>{setUser(u); setRoute('dashboard');}} />;
-			// route guarding: only admin can access encoder/admin
-			if (route === 'encoder') {
-				if (user && user.role === 'admin') return <EncoderDecoder onBack={()=>setRoute('dashboard')} />;
-				return <ViewGames onBack={()=>setRoute('dashboard')} user={user} />;
-			}
-			if (route === 'admin') {
-				if (user && user.role === 'admin') return <AdminPanel user={user||{}} db={fbDb} onBack={()=>setRoute('dashboard')} />;
-				return <ViewGames onBack={()=>setRoute('dashboard')} user={user} />;
-			}
-			if (route === 'view') return <ViewGames onBack={()=>setRoute('dashboard')} user={user} />;
-			return <Dashboard user={user||{username:'Guest'}} onLogout={logout} setRoute={setRoute} />;
-		}
+            }, []);
+            
+            // On successful auth, set the user and go home
+            const handleAuthSuccess = (u) => {
+                setUser(u);
+                setView('home');
+            };
 
-		// Remove the loading placeholder and render app, but catch runtime errors and show them
-		try {
-			if (document.getElementById('app-loading')) document.getElementById('app-loading').remove();
-			ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
-		} catch (err) {
-			console.error('Render failed', err);
-			try {
-				const root = document.getElementById('root');
-				if (root) root.innerHTML = `<div style="padding:24px;font-family:Inter,system-ui;color:#b91c1c;background:#fff1f2;">\n<h2 style=\"margin:0 0 8px;\">Render error</h2>\n<pre style=\"white-space:pre-wrap;word-break:break-word;\">${err && err.stack ? err.stack : String(err)}</pre>\n</div>`;
-			} catch (e) { console.error('render fallback failed', e); }
-		}
-	</script>
+            const handleSignOut = async () => {
+                if (fb && fb.signOut && fbAuth) {
+                    try {
+                        await fb.signOut(fbAuth);
+                    } catch (e) { console.error('Sign out failed', e); }
+                }
+                setUser(null);
+                setView('home');
+            };
+
+            if (loading) {
+                return <div className="min-h-screen flex items-center justify-center"><RefreshCw className="animate-spin text-indigo-600 w-8 h-8"/></div>;
+            }
+
+            // If user is not logged in, show AuthScreen
+            if (!user) {
+                return <AuthScreen onAuth={handleAuthSuccess} />;
+            }
+            
+            const isAdmin = user && user.role === 'admin';
+
+            // Conditional View Rendering
+            if (view === 'games') return <ViewGames onBack={() => setView('home')} user={user} />;
+            if (view === 'admin') return <AdminPanel user={user} db={fbDb} onBack={() => setView('home')} />;
+            if (view === 'encoder') return <EncoderDecoder onBack={() => setView('home')} />;
+            if (view === 'request') return <RequestGame user={user} onBack={() => setView('home')} />;
+            if (view === 'requests' && isAdmin) return <AdminRequests onBack={() => setView('home')} />;
+
+
+            // Main Home Screen
+            return (
+                <div className="container mx-auto p-4 max-w-5xl">
+                    <header className="flex justify-between items-center bg-white p-4 rounded-xl shadow mb-6">
+                        <h1 className="text-2xl font-bold text-indigo-700">Arcade Host Platform</h1>
+                        <div className="flex items-center space-x-4">
+                            <span className="text-gray-600 font-medium">Hello, {user.username || 'User'}!</span>
+                            <button onClick={handleSignOut} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition duration-150">Sign Out</button>
+                        </div>
+                    </header>
+
+                    <main className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <FeatureCard 
+                            icon={Code} 
+                            title="Play Games" 
+                            description="Browse and play all available hosted games." 
+                            onClick={() => setView('games')} 
+                        />
+                        <FeatureCard 
+                            icon={UserPlus} 
+                            title="Request a Game" 
+                            description="Let the host know what game you want to see next." 
+                            onClick={() => setView('request')} 
+                        />
+                        {isAdmin && (
+                            <>
+                                <FeatureCard 
+                                    icon={Settings} 
+                                    title="Admin Panel" 
+                                    description="Add new games to the platform." 
+                                    onClick={() => setView('admin')} 
+                                    color="bg-purple-600"
+                                />
+                                <FeatureCard 
+                                    icon={UploadCloud} 
+                                    title="View Requests" 
+                                    description="Review pending game requests." 
+                                    onClick={() => setView('requests')} 
+                                    color="bg-purple-600"
+                                />
+                                <FeatureCard 
+                                    icon={Key} 
+                                    title="Encode/Decode" 
+                                    description="Utility for base64 encoding/decoding game content." 
+                                    onClick={() => setView('encoder')} 
+                                    color="bg-purple-600"
+                                />
+                            </>
+                        )}
+                    </main>
+                    
+                    {!useFirebase && (
+                        <div className="mt-8 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg" role="alert">
+                            <strong className="font-bold">Database Warning: </strong>
+                            <span className="block sm:inline">Firebase connection failed or is not configured. Using **local mock data only**. Login checks are disabled.</span>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const FeatureCard = ({ icon: Icon, title, description, onClick, color = 'bg-indigo-600' }) => (
+            <div 
+                className="bg-white p-6 rounded-xl shadow-md border-t-4 border-indigo-500 hover:shadow-lg transition cursor-pointer"
+                onClick={onClick}
+            >
+                <div className={`p-3 rounded-full inline-block mb-4 text-white ${color}`}>
+                    <Icon className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">{title}</h3>
+                <p className="text-gray-600">{description}</p>
+            </div>
+        );
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<MainApp />);
+    </script>
+
+</body>
+</html>
