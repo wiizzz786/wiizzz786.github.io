@@ -43,7 +43,6 @@
     </div>
 
     <script>
-        // User-provided Firebase Web config — MUST be defined before the Firebase initializer script runs
         window.__firebase_config = {
             apiKey: "AIzaSyCrVhsbABjUW5pRGt4Tf0-T9KlHGjux-z4",
             authDomain: "wiiizzz786games.firebaseapp.com",
@@ -60,13 +59,14 @@
     <script src="https://unpkg.com/lucide-react@latest/umd/lucide-react.js"></script>
 
     <script type="module">
+        // Added required email/password functions to the imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Expose Firebase functions globally for the Babel script
         window.firebase = {
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, 
+            initializeApp, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, 
             getFirestore, collection, onSnapshot, query, addDoc, serverTimestamp, doc, setDoc, where, getDocs, getDoc, updateDoc, 
         };
     </script>
@@ -133,7 +133,7 @@
         const AlertTriangle = getIcon('AlertTriangle');
         const Key = getIcon('Key');
 
-        // Base64 helpers
+        // Base64 helpers (kept for game content, but not for passwords)
         const encodeBase64 = (s) => { try { return btoa(unescape(encodeURIComponent(s))); } catch(e){ return ''; } };
         const decodeBase64 = (s) => { try { return decodeURIComponent(escape(atob(s))); } catch(e){ return 'Invalid base64'; } };
 
@@ -144,7 +144,7 @@
 
         if (fb && Object.keys(firebaseConfig).length) {
             try {
-                // We use the existing instance initialized by the early script
+                // Use the existing instance initialized by the early script
                 fbAuth = window.__firebase_auth;
                 fbDb = window.__firebase_db;
                 useFirebase = !!(fbAuth && fbDb);
@@ -154,19 +154,9 @@
             }
         }
 
-        // Helper: sign in anonymously (returns current user)
-        const ensureAuth = async () => {
-            if (useFirebase && fb && fb.signInAnonymously) {
-                try {
-                    await fb.signInAnonymously(fbAuth);
-                    return fbAuth.currentUser;
-                } catch (e) {
-                    console.warn('Anon sign-in failed:', e.message);
-                }
-            }
-            return { uid: 'local-' + Math.random().toString(36).slice(2,8) };
-        };
-
+        // --- Custom User/Profile Management Functions ---
+        
+        // Used to check for a custom username during registration (Firestore check)
         const findUserByUsername = async (username) => {
             if (!useFirebase) return { found: false };
             try {
@@ -178,13 +168,14 @@
             return { found: false };
         };
 
+        // Used to create or update the user's *profile* in Firestore
         const createOrUpdateUser = async (uid, payload) => {
             if (!useFirebase) return true;
             try {
                 const ref = fb.doc(fbDb, `/artifacts/${appId}/public/data/users`, uid);
                 await fb.setDoc(ref, payload, { merge: true });
                 return true;
-            } catch (e) { console.error('set user error', e); return false; }
+            } catch (e) { console.error('set user profile error', e); return false; }
         };
 
         const addGameDoc = async (payload) => {
@@ -258,63 +249,94 @@
             } catch(e){ console.error('loadProgress', e); return null; }
         };
 
-        // AuthScreen using Firebase when available
+        // --- AUTH SCREEN (UPDATED FOR EMAIL/PASSWORD) ---
         const AuthScreen = ({ onAuth }) => {
             const [isLogin, setIsLogin] = useState(true);
-            const [username, setUsername] = useState('');
+            const [email, setEmail] = useState(''); 
             const [password, setPassword] = useState('');
+            const [username, setUsername] = useState(''); // Only used for registration
             const [status, setStatus] = useState('');
-
-            const HARDCODED_ADMIN_USERNAME = 'hkh';
-            const HARDCODED_ADMIN_PASSWORD = 'player9563';
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setStatus('');
-                if (username.length < 3 || password.length < 4) { setStatus('Username 3+ and password 4+ chars'); return; }
-                const encodedPassword = encodeBase64(password);
-                const currentUser = await ensureAuth();
+                if (!email || password.length < 6) { setStatus('Enter a valid email and password (6+ chars)'); return; }
+                if (!isLogin && username.length < 3) { setStatus('Username must be 3+ chars'); return; }
 
-                // Admin shortcut
-                if (isLogin && username === HARDCODED_ADMIN_USERNAME && encodedPassword === encodeBase64(HARDCODED_ADMIN_PASSWORD)) {
-                    await createOrUpdateUser(currentUser.uid, { username: HARDCODED_ADMIN_USERNAME, role: 'admin', lastActivity: fb && fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword });
-                    onAuth({ uid: currentUser.uid, username: HARDCODED_ADMIN_USERNAME, role: 'admin', encodedPassword });
+                // --- LOCAL/MOCK MODE FALLBACK ---
+                if (!useFirebase) {
+                    setStatus("Warning: Firebase not active. Logging in with mock data.");
+                    onAuth({ uid: 'local-'+Date.now(), username: username || 'mock-user', role: 'player', email });
                     return;
                 }
+                
+                try {
+                    if (isLogin) {
+                        // --- FIREBASE LOGIN ---
+                        const userCredential = await fb.signInWithEmailAndPassword(fbAuth, email, password);
+                        const user = userCredential.user;
+                        
+                        // Fetch the Firestore profile
+                        const profileRef = fb.doc(fbDb, `/artifacts/${appId}/public/data/users`, user.uid);
+                        const profileSnap = await fb.getDoc(profileRef);
 
-                // When using Firebase, check existing users
-                if (useFirebase) {
-                    try {
-                        const found = await findUserByUsername(username);
-                        if (isLogin) {
-                            if (!found.found) { 
-                                // LOGIN FAILED: Account doesn't exist
-                                setStatus('Account not found. Please register.'); 
-                                return; 
-                            }
-                            const data = found.doc.data();
-                            if (data.encodedPassword !== encodedPassword) { setStatus('Incorrect password'); return; }
-                            // map profile under current UID
-                            await createOrUpdateUser(currentUser.uid, { username: data.username, role: data.role || 'player', lastActivity: fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword: data.encodedPassword });
-                            onAuth({ uid: currentUser.uid, username: data.username, role: data.role || 'player', encodedPassword: data.encodedPassword });
-                            return;
+                        if (profileSnap.exists()) {
+                            const profileData = profileSnap.data();
+                            // Update last activity on successful login
+                            await createOrUpdateUser(user.uid, { lastActivity: fb.serverTimestamp() });
+                            onAuth({ uid: user.uid, ...profileData });
                         } else {
-                            // REGISTER
-                            if (found.found) { 
-                                // REGISTER FAILED: Account already exists
-                                setStatus('Username already taken. Please try to log in.'); 
-                                return; 
-                            }
-                            await createOrUpdateUser(currentUser.uid, { username, role: 'player', lastActivity: fb.serverTimestamp ? fb.serverTimestamp() : Date.now(), userId: currentUser.uid, encodedPassword });
-                            onAuth({ uid: currentUser.uid, username, role: 'player', encodedPassword });
-                            return;
+                            // Create a minimal profile if one doesn't exist
+                            const defaultProfile = { email, username: user.email.split('@')[0], role: 'player', lastActivity: fb.serverTimestamp() };
+                            await createOrUpdateUser(user.uid, defaultProfile);
+                            onAuth({ uid: user.uid, ...defaultProfile });
                         }
-                    } catch (err) { console.error('Auth error', err); setStatus('Auth failed: ' + err.message); }
-                } else {
-                    // Fallback mock behavior: accept any credentials
-                    setStatus("Warning: Firebase not active. Logging in with mock data.");
-                    await createOrUpdateUser(currentUser.uid, { username, role: 'player', lastActivity: Date.now(), userId: currentUser.uid, encodedPassword });
-                    onAuth({ uid: currentUser.uid, username, role: 'player', encodedPassword });
+
+                    } else {
+                        // --- FIREBASE REGISTRATION ---
+
+                        // 1. Check if the chosen username is already taken in Firestore
+                        const found = await findUserByUsername(username);
+                        if (found.found) { setStatus('Username already taken. Please choose another.'); return; }
+                        
+                        // 2. Create the user in Firebase Auth
+                        const userCredential = await fb.createUserWithEmailAndPassword(fbAuth, email, password);
+                        const user = userCredential.user;
+
+                        // 3. Create the profile in Firestore
+                        const newProfile = { 
+                            email: user.email, 
+                            username, 
+                            role: 'player', 
+                            lastActivity: fb.serverTimestamp(), 
+                            userId: user.uid 
+                        };
+                        await createOrUpdateUser(user.uid, newProfile);
+                        
+                        onAuth({ uid: user.uid, ...newProfile });
+                    }
+                } catch (err) {
+                    let errorMessage = 'Authentication failed.';
+                    if (err.code) {
+                        // Handle specific Firebase errors for a better UX
+                        switch (err.code) {
+                            case 'auth/user-not-found':
+                            case 'auth/wrong-password':
+                                errorMessage = 'Invalid email or password.';
+                                break;
+                            case 'auth/email-already-in-use':
+                                errorMessage = 'Email is already registered. Try logging in.';
+                                break;
+                            case 'auth/weak-password':
+                                errorMessage = 'Password should be at least 6 characters.';
+                                break;
+                            default:
+                                errorMessage = `Auth Error: ${err.code.replace('auth/', '')}`;
+                                break;
+                        }
+                    }
+                    console.error('Auth error', err);
+                    setStatus(errorMessage);
                 }
             };
 
@@ -324,8 +346,11 @@
                         <h2 className="text-2xl font-bold mb-4">{isLogin ? 'Sign In' : 'Register'}</h2>
                         {status && <div className="mb-3 p-2 bg-yellow-50 text-yellow-900 rounded">{status}</div>}
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            <input className="w-full p-3 border rounded" placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} />
-                            <input type="password" className="w-full p-3 border rounded" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} />
+                            <input type="email" className="w-full p-3 border rounded" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} />
+                            <input type="password" className="w-full p-3 border rounded" placeholder="Password (6+ characters)" value={password} onChange={e=>setPassword(e.target.value)} />
+                            {!isLogin && (
+                                <input className="w-full p-3 border rounded" placeholder="Username (for display)" value={username} onChange={e=>setUsername(e.target.value)} />
+                            )}
                             <button className="w-full bg-indigo-600 text-white p-3 rounded">{isLogin ? 'Log In' : 'Register'}</button>
                         </form>
                         <div className="mt-4 text-sm text-center">
@@ -553,15 +578,15 @@
                 if (useFirebase && fbAuth) {
                     const unsubscribe = fb.onAuthStateChanged(fbAuth, async (fbUser) => {
                         if (fbUser) {
-                            // If a user is signed in (even anonymously), try to fetch their profile
+                            // If a user is signed in, try to fetch their Firestore profile
                             try {
                                 const userRef = fb.doc(fbDb, `/artifacts/${appId}/public/data/users`, fbUser.uid);
                                 const userSnap = await fb.getDoc(userRef);
                                 if (userSnap.exists()) {
                                     setUser({ uid: fbUser.uid, ...userSnap.data() });
                                 } else {
-                                    // User exists but no profile created (e.g., anonymous user first load)
-                                    setUser(null); 
+                                    // User exists in Auth but has no profile
+                                    setUser({ uid: fbUser.uid, email: fbUser.email, username: fbUser.email.split('@')[0], role: 'player' }); 
                                 }
                             } catch (e) { console.error('Error fetching user profile:', e); setUser(null); }
                         } else {
@@ -569,14 +594,16 @@
                         }
                         setLoading(false);
                     });
+                    
+                    const loader = document.getElementById('app-loading');
+                    if (loader) loader.style.display = 'none';
+                    
                     // Cleanup subscription on component unmount
                     return () => unsubscribe();
                 }
 
-                // If no Firebase (mock mode), assume logged out
+                // If no Firebase (mock mode), set up the fallback
                 setLoading(false);
-
-                // Hide the loading placeholder element
                 const loader = document.getElementById('app-loading');
                 if (loader) loader.style.display = 'none';
 
