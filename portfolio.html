@@ -13,6 +13,7 @@
             --border-color: #30363d;
             --success-color: #3fb950;
             --error-color: #f85149;
+            --warning-color: #d29922;
         }
 
         html { scroll-behavior: smooth; }
@@ -59,6 +60,26 @@
 
         h2 { color: var(--accent-color); margin-top: 0; }
 
+        /* Under Construction Styling */
+        .construction-box {
+            text-align: center;
+            padding: 20px;
+            border: 2px dashed var(--warning-color);
+            border-radius: 8px;
+            color: var(--warning-color);
+        }
+
+        .gear-icon {
+            font-size: 2rem;
+            display: inline-block;
+            animation: spin 3s linear infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+
         /* Quiz UI */
         .quiz-box {
             background: #0d1117;
@@ -82,7 +103,6 @@
         }
 
         .quiz-option:hover:not(:disabled) { border-color: var(--accent-color); background: #30363d; }
-        
         .quiz-option:disabled { cursor: default; opacity: 0.8; }
 
         .next-btn {
@@ -94,10 +114,8 @@
             font-weight: bold;
             cursor: pointer;
             margin-top: 20px;
-            display: none; /* Hidden until answer is picked */
+            display: none;
         }
-
-        .next-btn:hover { background-color: #4186d1; }
 
         #geo-result { margin-top: 15px; font-weight: bold; min-height: 20px; }
     </style>
@@ -108,14 +126,14 @@
         <a href="#about">About</a>
         <a href="#godot">Godot FPS</a>
         <a href="#quiz">Geography Quiz</a>
-        <a href="#contact">Contact</a>
+        <a href="#status">Status</a>
     </nav>
 
     <div class="profile-container">
         
         <div id="about" class="section">
             <h2>About Me</h2>
-            <p>I'm a student creator. I build robots with Arduino and craft 3D experiences in Godot. I love learning about the world—both digital and physical!</p>
+            <p>I'm a student creator building robots with Arduino and 3D experiences in Godot.</p>
         </div>
 
         <div id="godot" class="section">
@@ -133,30 +151,22 @@
             </div>
         </div>
 
-        <div id="contact" class="section">
-            <h2>Contact</h2>
-            <p>Email: [your-email@example.com]</p>
+        <div id="status" class="section">
+            <h2>Contact & Socials</h2>
+            <div class="construction-box">
+                <div class="gear-icon">⚙️</div>
+                <h3>UNDER CONSTRUCTION</h3>
+                <p>This section is being rebuilt. Check back soon!</p>
+            </div>
         </div>
 
     </div>
 
     <script>
         const questions = [
-            {
-                q: "Which country has the most natural lakes in the world?",
-                options: ["USA", "Canada", "Brazil", "Russia"],
-                correct: 1
-            },
-            {
-                q: "What is the smallest country in the world?",
-                options: ["Monaco", "Malta", "Vatican City", "San Marino"],
-                correct: 2
-            },
-            {
-                q: "Which desert is the largest in the world?",
-                options: ["Sahara", "Gobi", "Antarctic", "Arabian"],
-                correct: 2
-            }
+            { q: "Which country has the most natural lakes?", options: ["USA", "Canada", "Brazil", "Russia"], correct: 1 },
+            { q: "Smallest country in the world?", options: ["Monaco", "Malta", "Vatican City", "San Marino"], correct: 2 },
+            { q: "Largest desert in the world?", options: ["Sahara", "Gobi", "Antarctic", "Arabian"], correct: 2 }
         ];
 
         let currentQ = 0;
@@ -182,21 +192,16 @@
         function checkAns(picked, btn) {
             const correct = questions[currentQ].correct;
             const res = document.getElementById('geo-result');
-            const allBtns = document.querySelectorAll('.quiz-option');
-            
-            allBtns.forEach(b => b.disabled = true); // Disable all after pick
+            document.querySelectorAll('.quiz-option').forEach(b => b.disabled = true);
 
             if(picked === correct) {
-                res.innerText = "Correct! Well done.";
+                res.innerText = "Correct!";
                 res.style.color = "var(--success-color)";
-                btn.style.borderColor = "var(--success-color)";
                 score++;
             } else {
-                res.innerText = "Wrong! The answer was: " + questions[currentQ].options[correct];
+                res.innerText = "Wrong! Answer was: " + questions[currentQ].options[correct];
                 res.style.color = "var(--error-color)";
-                btn.style.borderColor = "var(--error-color)";
             }
-
             document.getElementById('next-btn').style.display = 'block';
         }
 
@@ -205,15 +210,9 @@
             if(currentQ < questions.length) {
                 initQuiz();
             } else {
-                document.getElementById('quiz-engine').innerHTML = `
-                    <h3 style="color:white">Quiz Complete!</h3>
-                    <p style="font-size:1.5rem">You scored: ${score} / ${questions.length}</p>
-                    <button class="quiz-option" style="text-align:center" onclick="location.reload()">Restart Quiz</button>
-                `;
+                document.getElementById('quiz-engine').innerHTML = `<h3 style='color:white'>Done! Score: ${score}/${questions.length}</h3><button class='quiz-option' onclick='location.reload()'>Restart</button>`;
             }
         }
-
-        // Start the quiz on load
         initQuiz();
     </script>
 
