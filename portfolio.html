@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile | Portfolio</title>
+    <title>Profile | Placeholder Name</title>
     <style>
         :root {
             --bg-color: #0d1117;
@@ -11,7 +11,11 @@
             --text-color: #c9d1d9;
             --accent-color: #58a6ff;
             --border-color: #30363d;
+            --success-color: #3fb950;
+            --error-color: #f85149;
         }
+
+        html { scroll-behavior: smooth; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -21,116 +25,197 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 2rem;
+            padding-top: 80px;
         }
 
-        .back-link {
-            align-self: flex-start;
-            color: var(--accent-color);
-            text-decoration: none;
-            margin-bottom: 2rem;
-        }
-
-        .profile-container {
-            max-width: 800px;
+        /* Nav Bar */
+        .navbar {
+            position: fixed;
+            top: 0;
             width: 100%;
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 40px;
-        }
-
-        .header-section {
-            display: flex;
-            align-items: center;
-            gap: 20px;
+            background-color: rgba(22, 27, 34, 0.95);
             border-bottom: 1px solid var(--border-color);
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-
-        .avatar {
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(45deg, #58a6ff, #f78166);
-            border-radius: 50%;
             display: flex;
-            align-items: center;
             justify-content: center;
-            font-size: 2rem;
-            color: white;
-            font-weight: bold;
+            gap: 30px;
+            padding: 15px 0;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
         }
 
-        h1 { margin: 0; color: white; }
-        .tagline { color: #8b949e; margin: 5px 0 0 0; }
+        .navbar a { color: var(--text-color); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+        .navbar a:hover { color: var(--accent-color); }
 
-        .section { margin-bottom: 30px; }
-        h2 { color: white; font-size: 1.2rem; border-left: 4px solid var(--accent-color); padding-left: 10px; }
+        .profile-container { max-width: 900px; width: 95%; padding: 20px; }
 
-        .skills-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 15px;
+        .section {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 40px;
+            scroll-margin-top: 100px;
         }
 
-        .skill-tag {
+        h2 { color: var(--accent-color); margin-top: 0; }
+
+        /* Quiz UI */
+        .quiz-box {
+            background: #0d1117;
+            padding: 25px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .quiz-option {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
             background: #21262d;
             border: 1px solid var(--border-color);
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-        }
-
-        .contact-btn {
-            display: inline-block;
-            background-color: #238636;
             color: white;
-            text-decoration: none;
-            padding: 10px 20px;
+            cursor: pointer;
             border-radius: 6px;
-            font-weight: 600;
-            margin-top: 20px;
+            text-align: left;
+            transition: 0.2s;
         }
 
-        .contact-btn:hover { background-color: #2ea043; }
+        .quiz-option:hover:not(:disabled) { border-color: var(--accent-color); background: #30363d; }
+        
+        .quiz-option:disabled { cursor: default; opacity: 0.8; }
+
+        .next-btn {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            display: none; /* Hidden until answer is picked */
+        }
+
+        .next-btn:hover { background-color: #4186d1; }
+
+        #geo-result { margin-top: 15px; font-weight: bold; min-height: 20px; }
     </style>
 </head>
 <body>
 
-    <a href="index.html" class="back-link">← Back to Home</a>
+    <nav class="navbar">
+        <a href="#about">About</a>
+        <a href="#godot">Godot FPS</a>
+        <a href="#quiz">Geography Quiz</a>
+        <a href="#contact">Contact</a>
+    </nav>
 
     <div class="profile-container">
-        <div class="header-section">
-            <div class="avatar">JS</div> <div>
-                <h1>Your Name</h1>
-                <p class="tagline">Developer | Security Enthusiast | Gamer</p>
-            </div>
-        </div>
-
-        <div class="section">
+        
+        <div id="about" class="section">
             <h2>About Me</h2>
-            <p>I'm a developer interested in building interactive web experiences and exploring the world of cybersecurity. This site serves as my personal hub for projects and research.</p>
+            <p>I'm a student creator. I build robots with Arduino and craft 3D experiences in Godot. I love learning about the world—both digital and physical!</p>
         </div>
 
-        <div class="section">
-            <h2>Technical Skills</h2>
-            <div class="skills-grid">
-                <span class="skill-tag">HTML/CSS</span>
-                <span class="skill-tag">JavaScript</span>
-                <span class="skill-tag">Git/GitHub</span>
-                <span class="skill-tag">Pentesting</span>
-                <span class="skill-tag">Game Dev</span>
+        <div id="godot" class="section">
+            <h2>Godot FPS Project</h2>
+            <p>A 3D shooter featuring RayCast combat and high-speed movement mechanics.</p>
+        </div>
+
+        <div id="quiz" class="section">
+            <h2>Geography Quiz</h2>
+            <div class="quiz-box" id="quiz-engine">
+                <p id="geo-question" style="color: white; font-size: 1.1rem; font-weight: bold;"></p>
+                <div id="options-container"></div>
+                <p id="geo-result"></p>
+                <button class="next-btn" id="next-btn" onclick="loadNextQuestion()">Next Question →</button>
             </div>
         </div>
 
-        <div class="section">
+        <div id="contact" class="section">
             <h2>Contact</h2>
-            <p>Want to collaborate on a project or report a bug?</p>
-            <a href="mailto:your-email@example.com" class="contact-btn">Send me an Email</a>
+            <p>Email: [your-email@example.com]</p>
         </div>
+
     </div>
+
+    <script>
+        const questions = [
+            {
+                q: "Which country has the most natural lakes in the world?",
+                options: ["USA", "Canada", "Brazil", "Russia"],
+                correct: 1
+            },
+            {
+                q: "What is the smallest country in the world?",
+                options: ["Monaco", "Malta", "Vatican City", "San Marino"],
+                correct: 2
+            },
+            {
+                q: "Which desert is the largest in the world?",
+                options: ["Sahara", "Gobi", "Antarctic", "Arabian"],
+                correct: 2
+            }
+        ];
+
+        let currentQ = 0;
+        let score = 0;
+
+        function initQuiz() {
+            const qData = questions[currentQ];
+            document.getElementById('geo-question').innerText = qData.q;
+            const container = document.getElementById('options-container');
+            container.innerHTML = '';
+            document.getElementById('geo-result').innerText = '';
+            document.getElementById('next-btn').style.display = 'none';
+
+            qData.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'quiz-option';
+                btn.innerText = opt;
+                btn.onclick = () => checkAns(index, btn);
+                container.appendChild(btn);
+            });
+        }
+
+        function checkAns(picked, btn) {
+            const correct = questions[currentQ].correct;
+            const res = document.getElementById('geo-result');
+            const allBtns = document.querySelectorAll('.quiz-option');
+            
+            allBtns.forEach(b => b.disabled = true); // Disable all after pick
+
+            if(picked === correct) {
+                res.innerText = "Correct! Well done.";
+                res.style.color = "var(--success-color)";
+                btn.style.borderColor = "var(--success-color)";
+                score++;
+            } else {
+                res.innerText = "Wrong! The answer was: " + questions[currentQ].options[correct];
+                res.style.color = "var(--error-color)";
+                btn.style.borderColor = "var(--error-color)";
+            }
+
+            document.getElementById('next-btn').style.display = 'block';
+        }
+
+        function loadNextQuestion() {
+            currentQ++;
+            if(currentQ < questions.length) {
+                initQuiz();
+            } else {
+                document.getElementById('quiz-engine').innerHTML = `
+                    <h3 style="color:white">Quiz Complete!</h3>
+                    <p style="font-size:1.5rem">You scored: ${score} / ${questions.length}</p>
+                    <button class="quiz-option" style="text-align:center" onclick="location.reload()">Restart Quiz</button>
+                `;
+            }
+        }
+
+        // Start the quiz on load
+        initQuiz();
+    </script>
 
 </body>
 </html>
